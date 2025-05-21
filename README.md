@@ -1,5 +1,4 @@
-.. image:: ./images/nanoMS_logo.png
-  :width: 500
+![Overview](./images/nanoMS_logo.png){: style="width:200px; height:150px"}
 Simultaneous detection of RNA m6A and structure from direct RNA-seq data.
 ******************
 # nanoMS

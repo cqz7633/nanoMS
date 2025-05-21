@@ -1,8 +1,8 @@
-<p align="center"><img src="./images/nanoMS_logo.png" width="600px" height="300px" style="float: left; margin-right: 10px;" ></p>
+<p align="left"><img src="./images/nanoMS_logo.png" width="600px" height="300px" style="float: left;" ></p>
 Simultaneous detection of RNA m6A and structure from direct RNA-seq data
 ******************
 # nanoMS
-![Overview](./images/nanoMS_pipline.png)
+<p align="center"><img src="./images/nanoMS_pipline.png" ></p>
 
 ## Installation
 The installation process requires `Perl` and `Conda`, so you need to install them.

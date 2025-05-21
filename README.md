@@ -9,7 +9,7 @@ Simultaneous detection of RNA m6A and structure from direct RNA-seq data
 First, download the repository and create the environment.
 
 ```
-git clone [https://github.com/cqz7633/FIAAU.git](https://github.com/cqz7633/nanoMS.git)
+git clone https://github.com/cqz7633/nanoMS.git
 cd ./nanoMS
 conda env create -f environment.yml
 ```

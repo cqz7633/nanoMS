@@ -3,7 +3,7 @@
 ******************
 
 # nanoMS
-Simultaneous detection of RNA m6A and structure from direct RNA-seq data
+Simultaneous detection of RNA m6A and structure from direct RNA-seq data.
 
 ## Create Environment with Conda
 First, download the repository and create the environment.

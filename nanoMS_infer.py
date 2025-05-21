@@ -86,15 +86,15 @@ def preprocess_data(df: pd.DataFrame, scaler, feature_names: List[str]):
     return X_scaled, contig.reset_index(drop=True), position.reset_index(drop=True)
 
 def main():
-    parser = argparse.ArgumentParser(description="M6A predictor")
-    parser.add_argument("--test_file", required=True)
-    parser.add_argument("--output_dir", required=True)
-    parser.add_argument("--preprocessed_train_data_file", default="preprocessed_train_data.pkl")
-    parser.add_argument("--output_file", required=True)
-    parser.add_argument("--gpu_id", type=int, default=None)
+    parser = argparse.ArgumentParser(description="nanoMS predictor")
+    parser.add_argument("--test_file", type=str, required=True, help='The input file path')
+    parser.add_argument("--model_dir", type=str, required=True, help='Output directory for nanoMS training')
+    parser.add_argument("--preprocessed_train_data_file", type=str, default="preprocessed_train_data.pkl", help='Pre processed training data save/load file name')
+    parser.add_argument("--output_file", type=str, required=True, help='Path of output results')
+    parser.add_argument("--gpu_id", type=int, default=None, help='GPU ID')
     args = parser.parse_args()
 
-    prep_path = os.path.join(args.output_dir, args.preprocessed_train_data_file)
+    prep_path = os.path.join(args.model_dir, args.preprocessed_train_data_file)
     if not os.path.exists(prep_path):
         raise FileNotFoundError(f"Cannot find preprocessed training data file: {prep_path}")
     with open(prep_path, "rb") as f:
@@ -110,8 +110,8 @@ def main():
 
     test_loader = DataLoader(M6ADataset(X_test), batch_size=32, shuffle=False, num_workers=4)
 
-    rf_path = os.path.join(args.output_dir, "random_forest.pkl")
-    nn_path = os.path.join(args.output_dir, "best_model.pth")
+    rf_path = os.path.join(args.model_dir, "random_forest.pkl")
+    nn_path = os.path.join(args.model_dir, "best_model.pth")
     if not os.path.exists(rf_path) or not os.path.exists(nn_path):
         raise FileNotFoundError("Lacking random_forest.pkl or best_model.pth")
     rf_model = joblib.load(rf_path)

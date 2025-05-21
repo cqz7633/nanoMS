@@ -76,9 +76,9 @@ def is_valid_drach_sequence(kmer_sequence):
 
 
 # 读取结合位点文件，生成一个包含匹配项的集合
-def read_icshape(icshape_file):
+def read_icshape(shape_file):
 	struct_dict = {}
-	with open(icshape_file, "r") as sf:
+	with open(shape_file, "r") as sf:
 		for line in sf:
 			line = line.strip()
 			if not line:
@@ -180,24 +180,28 @@ def merge_module(flt_modules):
 
 	# filter nan inf
 	numeric_df = merge_df[merge_df.columns[2:]].apply(pd.to_numeric, errors='coerce')
-	mask = (
-		numeric_df.isna().any(axis=1) |          # 检查NaN
-		np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
-	)
-	merge_df = merge_df[~mask]
-	removed_count = mask.sum()
-	if removed_count > 0:
-		print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
+	if numeric_df.shape[0] != 0:
+		mask = (
+			numeric_df.isna().any(axis=1) |          # 检查NaN
+			np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
+		)
+		merge_df = merge_df[~mask]
+		removed_count = mask.sum()
+		if removed_count > 0:
+			print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
+		else:
+			print("No samples containing NaN or nf/- nf were found.")
+
+		header = "\t".join(merge_df.columns)
+
+		# 2. 用 "\t".join() 拼接每一行
+		rows = ["\t".join(map(str, row)) for row in merge_df.values]
+
+		# 3. 组合成列表，列名作为第一个元素
+		res_list = [header] + rows
 	else:
-		print("No samples containing NaN or nf/- nf were found.")
-
-	header = "\t".join(merge_df.columns)
-
-	# 2. 用 "\t".join() 拼接每一行
-	rows = ["\t".join(map(str, row)) for row in merge_df.values]
-
-	# 3. 组合成列表，列名作为第一个元素
-	res_list = [header] + rows
+		print("Error: The merged module is empty.")
+		sys.exit()
 	return res_list
 
 def extract_shape(merge_list, struct_dict):
@@ -301,81 +305,6 @@ def convert_structure(flt_struct_list, output_file):
 		for line in tqdm(conver_struct_list, desc="Writing output"):
 			out.write(line + '\n')
 
-# def remove_columns(conver_struct_list, output_file):
-# 	lines = conver_struct_list
-# 	if not lines:
-# 		print("The input file is empty.")
-# 		return
-
-# 	header = lines[0].split('\t')
-
-# 	# 找到要移除的列的索引
-# 	remove_cols = {'contig', 'position'}
-# 	remove_indices = [i for i, col in enumerate(header) if col in remove_cols]
-
-# 	# 构造新表头
-# 	new_header = [col for i, col in enumerate(header) if i not in remove_indices]
-
-# 	new_data_list = []
-# 	new_data_list.append('\t'.join(new_header))
-
-# 	for line in tqdm(lines[1:], desc="Processing lines"):
-# 		line = line.strip()
-# 		if not line:
-# 			continue
-# 		cols = line.split('\t')
-# 		new_cols = [val for i, val in enumerate(cols) if i not in remove_indices]
-# 		new_data_list.append('\t'.join(new_cols))
-
-#     with open(output_file, 'w') as out:
-# 		for line in tqdm(new_data_list, desc="Writing output"):
-# 			out.write(line + '\n')
-
-def balance_labels(new_data_list, output_file, seed=42):
-	random.seed(seed)
-
-	lines = new_data_list
-	if not lines:
-		print("The input file is empty.")
-		return
-
-	header = lines[0]
-	data_lines = lines[1:]
-
-	label_1 = []
-	label_0 = []
-
-	for line in tqdm(data_lines, desc="Parsing lines"):
-		line = line.strip()
-		if not line:
-			continue
-		cols = line.split('\t')
-		label = cols[-1]
-		if label == "1":
-			label_1.append(line)
-		elif label == "0":
-			label_0.append(line)
-
-	n_1 = len(label_1)
-	print(f"Label=1 entries: {n_1}")
-
-	if len(label_0) < n_1:
-		print(f"⚠️ Warning: There are less than {n_1} entries with label=0, only {len(label_0)} entries, all of which will be used.")
-		sampled_label_0 = label_0
-	else:
-		sampled_label_0 = random.sample(label_0, n_1)
-
-	print(f"Randomly selected label=0 entries: {len(sampled_label_0)}")
-
-	# 合并 + 打乱（如不需要可去除）
-	final_data = label_1 + sampled_label_0
-	random.shuffle(final_data)
-
-	with open(output_file, 'w') as out:
-		out.write(header + '\n')
-		for line in tqdm(final_data, desc="Writing output"):
-			out.write(line + '\n')
-
 def main():
 
 	args = parse_arguments()
@@ -398,12 +327,11 @@ def main():
 	add_struct_list = extract_shape(merge_list, struct_dict)
 
 	flt_struct_list = filter_structure(add_struct_list)
-	
+	if len(flt_struct_list) < 2:
+		print("Warning: The filtered structural module is empty.")
+		sys.exit()
 	convert_structure(flt_struct_list, output_file)
-	
-	# remove_columns(conver_struct_list, output_file)
-	
-	# balance_labels(new_data_list, output_file)
+
 
 if __name__ == "__main__":
 	main()

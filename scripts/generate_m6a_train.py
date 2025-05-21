@@ -9,7 +9,7 @@ import random
 import re
 
 def parse_arguments():
-	parser = argparse.ArgumentParser(description="Filter modules based on DRACH rule.")
+	parser = argparse.ArgumentParser(description="Generate m6A sites training data.")
 	parser.add_argument("--input_file", required=True, type=str, help="Input file after clean_event.py process")
 	parser.add_argument("--output_file", required=True, type=str, help="Output dir path")
 	parser.add_argument("--ref_pos_file", required=True, type=str, help="Reference position file")
@@ -203,16 +203,20 @@ def merge_module(flt_modules):
 
 	# filter nan inf
 	numeric_df = merge_df[merge_df.columns[2:]].apply(pd.to_numeric, errors='coerce')
-	mask = (
-		numeric_df.isna().any(axis=1) |          # 检查NaN
-		np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
-	)
-	merge_df = merge_df[~mask]
-	removed_count = mask.sum()
-	if removed_count > 0:
-		print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
+	if numeric_df.shape[0] != 0:
+		mask = (
+			numeric_df.isna().any(axis=1) |          # 检查NaN
+			np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
+		)
+		merge_df = merge_df[~mask]
+		removed_count = mask.sum()
+		if removed_count > 0:
+			print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
+		else:
+			print("No samples containing NaN or nf/- nf were found.")
 	else:
-		print("No samples containing NaN or nf/- nf were found.")
+		print("Error: The merged module is empty.")
+		sys.exit()
 	return merge_df
 
 def extract_random_entries(df, num_neg):    
@@ -224,7 +228,7 @@ def extract_random_entries(df, num_neg):
 	return sampled_df
 
 def merge_and_shuffle(df1, df2, output_file):
-    
+	
 	df_merged = pd.concat([df1, df2], ignore_index=True)
 	
 	# 打乱行的顺序

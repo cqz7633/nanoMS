@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 def parse_arguments():
-	parser = argparse.ArgumentParser(description="Filter modules based on DRACH rule.")
+	parser = argparse.ArgumentParser(description=" Generate m6A sites and secondary structure data for inference.")
 	parser.add_argument("--input_file", type=str, required=True, help="Input file after clean_event.py process")
 	parser.add_argument("--output_dir", type=str, required=True, help="Output dir path")
 	parser.add_argument("--file_prefix", type=str, required=True, help="Output file prefix")
@@ -147,18 +147,22 @@ def merge_module(flt_modules, output_file):
 
 	# filter nan inf
 	numeric_df = merge_df[merge_df.columns[2:]].apply(pd.to_numeric, errors='coerce')
-	mask = (
-		numeric_df.isna().any(axis=1) |          # 检查NaN
-		np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
-	)
-	merge_df = merge_df[~mask]
-	removed_count = mask.sum()
-	if removed_count > 0:
-		print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
+	if numeric_df.shape[0] != 0:
+		mask = (
+			numeric_df.isna().any(axis=1) |          # 检查NaN
+			np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
+		)
+		merge_df = merge_df[~mask]
+		removed_count = mask.sum()
+		if removed_count > 0:
+			print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
+		else:
+			print("No samples containing NaN or nf/- nf were found.")
+		merge_df["label"] = -1
+		merge_df.to_csv(output_file, sep="\t", index=False)
 	else:
-		print("No samples containing NaN or nf/- nf were found.")
-	merge_df["label"] = -1
-	merge_df.to_csv(output_file, sep="\t", index=False)
+		print("Error: The merged module is empty.")
+		sys.exit()
 
 def main():
 	args = parse_arguments()

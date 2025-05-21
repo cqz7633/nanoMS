@@ -20,7 +20,7 @@ Then, activate the `nanoMS` environment.
 conda activate nanoMS
 ```
 
-## data processing
+## Data processing
 We have provided demo data in the `./Data`.
 ### 1. Clean events
 Clean the current information file obtained from nanopolis using the `clean_event.py` script

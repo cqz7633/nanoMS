@@ -44,7 +44,9 @@ python ./scripts/clean_event.py --input ./data/Demo_H9_nanopolish_events.tsv --o
 
 ### 2.1 Generate training data for m6A sites
 
-First, prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript. The format is as follows:
+First, prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript. 
+
+The format is as follows:
 | Trans| Position |
 |--------|---------|
 | ENST00000416718.2 | 82 |
@@ -132,4 +134,102 @@ python ./scripts/generate_infer_data.py --input_file /PATH/to/clean_events.txt -
 
 ## nanoMS training
 
+Train the nanoMS model using the nanoMS_train.py script, which accepts either m6A site data or secondary structure data as input. 
 
+The parameters for nanoMS_train.py are as follows:
+```
+usage: nanoMS_train.py [-h] --train_file TRAIN_FILE [--valid_ratio VALID_RATIO] --output_dir OUTPUT_DIR
+                       [--epochs EPOCHS] [--batch_size BATCH_SIZE] [--learning_rate LEARNING_RATE]
+                       [--patience PATIENCE] [--seed SEED] [--attention_hidden_dim ATTENTION_HIDDEN_DIM]
+                       [--dropout_rate DROPOUT_RATE] [--focal_alpha FOCAL_ALPHA] [--focal_gamma FOCAL_GAMMA]
+                       [--gpu_id GPU_ID] [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE]
+                       [--preprocessed_test_data_file PREPROCESSED_TEST_DATA_FILE] [--save_epoch_model] [--l2 L2]
+                       [--hidden_layers HIDDEN_LAYERS [HIDDEN_LAYERS ...]] [--rf_n_estimators RF_N_ESTIMATORS]
+                       [--rf_max_depth RF_MAX_DEPTH] [--rf_class_weight RF_CLASS_WEIGHT]
+                       [--rf_min_samples_split RF_MIN_SAMPLES_SPLIT] [--rf_min_samples_leaf RF_MIN_SAMPLES_LEAF]
+                       [--use_preprocessed]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --train_file TRAIN_FILE
+                        Train data file path
+  --valid_ratio VALID_RATIO
+                        Validation set ratio
+  --output_dir OUTPUT_DIR
+                        Save the directory of models and results.
+  --epochs EPOCHS       Number of training epochs
+  --batch_size BATCH_SIZE
+                        Training batch size
+  --learning_rate LEARNING_RATE
+                        learning_rate
+  --patience PATIENCE   Patient early stop counter
+  --seed SEED           seed
+  --attention_hidden_dim ATTENTION_HIDDEN_DIM
+                        The hidden dimensions of attention mechanism
+  --dropout_rate DROPOUT_RATE
+                        dropout ratio
+  --focal_alpha FOCAL_ALPHA
+                        Focal alpha
+  --focal_gamma FOCAL_GAMMA
+                        Focal gamma
+  --gpu_id GPU_ID       GPU ID
+  --preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE
+                        Pre processed training data save/load file name
+  --preprocessed_test_data_file PREPROCESSED_TEST_DATA_FILE
+                        Pre processed test data save/load file name
+  --save_epoch_model    Save the model for each epoch
+  --l2 L2               L2 (weight_decay)
+  --hidden_layers HIDDEN_LAYERS [HIDDEN_LAYERS ...]
+                        Size of hidden layers in neural networks. --hidden_layers 256 128
+  --rf_n_estimators RF_N_ESTIMATORS
+                        The number of estimators for random forests.
+  --rf_max_depth RF_MAX_DEPTH
+                        The maximum depth of a random forest.
+  --rf_class_weight RF_CLASS_WEIGHT
+                        The category weights of random forests.
+  --rf_min_samples_split RF_MIN_SAMPLES_SPLIT
+                        The minimum number of sample partitions for a random forest.
+  --rf_min_samples_leaf RF_MIN_SAMPLES_LEAF
+                        The minimum number of leaf node samples in a random forest.
+  --use_preprocessed    Whether to use preprocessed data files.
+```
+An example of running a command is provided as below:
+```
+python ./nanoMS_train.py \
+	--batch_size 32 \
+	--train_file /PATH/to/m6a/or/structure/train/data \
+	--epochs 150 \
+	--patience 15 \
+	--gpu_id 0 \
+	--output_dir /PATH/to/output/dir \
+```
+
+## nanoMS inference
+Perform inference using the trained nanoMS model via the nanoMS_infer.py script. 
+
+The parameters of the nanoMS_infer.py script are as follows:
+```
+usage: nanoMS_infer.py [-h] --test_file TEST_FILE --model_dir MODEL_DIR
+                       [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE] --output_file OUTPUT_FILE
+                       [--gpu_id GPU_ID]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --test_file TEST_FILE
+                        The input file path
+  --model_dir MODEL_DIR
+                        Output directory for nanoMS training
+  --preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE
+                        Pre processed training data save/load file name
+  --output_file OUTPUT_FILE
+                        Path of output results
+  --gpu_id GPU_ID       GPU ID
+```
+An example of running a command is provided as below:
+```
+python ./nanoMS_infer.py \
+	--model_dir /PATH/to/nanoMS/pre-trained/output/dir \
+	--test_file /PATH/to/m6a/or/structure/inference/data \
+	--output_file /PATH/to/output/file \
+	--gpu_id 0 \
+```

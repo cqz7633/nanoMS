@@ -54,6 +54,8 @@ First, prepare a file containing known m6A sites as training labels, where the f
 | ENST00000477976.5 | 2766 |
 | ENST00000379370.7 | 6241 |
 
+*NOTE:* This file contains a header.
+
 Generate training data from cleaned event data using the `generate_m6a_train.py` script.
 
 The parameters of the `generate_m6a_train.py` script is provided as below:
@@ -85,8 +87,6 @@ First, prepare a file containing known m6A sites as training labels, where the f
 | ENST00000327044.7 | 1335 |
 | ENST00000477976.5 | 2766 |
 | ENST00000379370.7 | 6241 |
-
-*NOTE:* This file contains a header.
 
 Generate training data from cleaned event data using the `generate_m6a_train.py` script.
 

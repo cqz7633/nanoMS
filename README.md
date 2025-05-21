@@ -25,7 +25,7 @@ We have provided demo data in the `./Data`.
 ### 1. Clean events
 Clean the current information file obtained from nanopolis using the `clean_event.py` script
 
-The parameters of the `FIAAU_integrate.R` script is provided as below:
+The parameters of the `clean_event.py` script is provided as below:
 ```
 usage: clean_event.py [-h] --input INPUT --output OUTPUT
                       [--processes PROCESSES]
@@ -42,9 +42,37 @@ An example of running a command is provided as below:
 python ./scripts/clean_event.py --input ./data/Demo_H9_nanopolish_events.tsv --output /PATH/to/clean_events.txt --processes 12
 ```
 
-### 2. Samples information files
+### 2.1 Generate training data for m6A sites
 
-The pipeline requires `FastQ` and `BAM` files as inputs, so we need to create two separate files to provide their locations and corresponding sample information. Please note that the sample information file does not require a header.
+First, prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript. The format is as follows:
+| Trans| Position |
+|--------|---------|
+| ENST00000416718.2 | 82 |
+| ENST00000416718.2 | 145 |
+| ENST00000416718.2 | 157 |
+| ENST00000327044.7 | 1335 |
+| ENST00000477976.5 | 2766 |
+| ENST00000379370.7 | 6241 |
+
+Generate training data from cleaned event data using the `generate_m6a_train.py` script
+The parameters of the `generate_m6a_train.py` script is provided as below:
+```
+usage: generate_m6a_train.py [-h] --input_file INPUT_FILE --output_file
+                             OUTPUT_FILE --ref_pos_file REF_POS_FILE
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input_file INPUT_FILE
+                        Input file after clean_event.py process
+  --output_file OUTPUT_FILE
+                        Output dir path
+  --ref_pos_file REF_POS_FILE
+                        Reference position file
+```
+An example of running a command is provided as below:
+```
+python ./scripts/generate_m6a_train.py input_file /PATH/to/clean_events.txt --output_file /PATH/to/m6A_train_data.tsv --ref_pos_file ./data/Demo_H9_ref_position.tsv
+```
 
 #### FastQ information file
 The sample file of FastQ, the first column is the absolute path of the FastQ file. If it is `pair-end` data, the `R1` and `R2` files of each sample are arranged together. The second column is sample information, used to provide control and treatment group information in the FastQ files.

@@ -1,6 +1,5 @@
-<p align="center"><img src="./images/nanoMS_logo.png" width="600px" height="300px"></p>
-Simultaneous detection of RNA m6A and structure from direct RNA-seq data.
-
+<p align="center"><img src="./images/nanoMS_logo.png" width="600px" height="300px" style="float: left; margin-right: 10px;" ></p>
+Simultaneous detection of RNA m6A and structure from direct RNA-seq data
 ******************
 # nanoMS
 ![Overview](./images/nanoMS_pipline.png)
@@ -9,26 +8,18 @@ Simultaneous detection of RNA m6A and structure from direct RNA-seq data.
 The installation process requires `Perl` and `Conda`, so you need to install them.
 
 ### Create Environment with Conda
-First, download the repository and create the environment. Some dependencies related to the R language in yml may fail to download. If you encounter this issue, please try again a few times.
+First, download the repository and create the environment.
 
 ```
-git clone https://github.com/cqz7633/FIAAU.git
-cd ./FIAAU/install
+git clone [https://github.com/cqz7633/FIAAU.git](https://github.com/cqz7633/nanoMS.git)
+cd ./nanoMS
 conda env create -f environment.yml
 ```
 
-Then, activate the `FIAAU` environment.
+Then, activate the `nanoMS` environment.
 
 ```
-conda activate FIAAU
-```
-*NOTE:* Please ensure that your R is calling in the FIAAU environment.
-
-### Install Perl package and local R package
-We have compiled a simple installation bash script, please run it directly.
-
-```
-bash install.sh
+conda activate nanoMS
 ```
 
 ## Prepare annotation files and samples information files

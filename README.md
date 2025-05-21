@@ -228,7 +228,7 @@ optional arguments:
 An example of running a command is provided as below:
 ```
 python ./nanoMS_infer.py \
-	--model_dir /PATH/to/nanoMS/pre-trained/output/dir \
+	--model_dir /PATH/to/nanoMS/trained/output/dir \
 	--test_file /PATH/to/m6a/or/structure/inference/data \
 	--output_file /PATH/to/output/file \
 	--gpu_id 0 \

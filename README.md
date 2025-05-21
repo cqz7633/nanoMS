@@ -87,24 +87,49 @@ First, prepare a file containing known RNA secondary structures as training labe
 
 *NOTE:* This file does not contains a header and is divided by tabs.
 
-Generate training data from cleaned event data using the `generate_m6a_train.py` script.
+Generate training data from cleaned event data using the `generate_struct_train.py` script.
 
-The parameters of the `generate_m6a_train.py` script is provided as below:
+The parameters of the `generate_struct_train.py` script is provided as below:
 ```
-usage: generate_m6a_train.py [-h] --input_file INPUT_FILE --output_file
-                             OUTPUT_FILE --ref_pos_file REF_POS_FILE
+usage: generate_struct_train.py [-h] --input_file INPUT_FILE --output_file
+                                OUTPUT_FILE --shape_file SHAPE_FILE
 
 optional arguments:
   -h, --help            show this help message and exit
   --input_file INPUT_FILE
                         Input file after clean_event.py process
   --output_file OUTPUT_FILE
-                        Output dir path
-  --ref_pos_file REF_POS_FILE
-                        Reference position file
+                        Output file path
+  --shape_file SHAPE_FILE
+                        Reference icshape file
 ```
 An example of running a command is provided as below:
 ```
-python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --output_file /PATH/to/m6A_train_data.tsv --ref_pos_file ./data/Demo_H9_ref_position.tsv
+python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --output_file /PATH/to/struct_train_data.tsv --shape_file ./data/Demo_H9_shape.tsv
 ```
+### 2.3 Generate m6A sites and secondary structure data for inference
+
+Generate inferred data from cleaned event data using the `generate_infer_data.py` script.
+
+The parameters of the `generate_infer_data.py` script is provided as below:
+```
+usage: generate_infer_data.py [-h] --input_file INPUT_FILE --output_dir
+                              OUTPUT_DIR --file_prefix FILE_PREFIX
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input_file INPUT_FILE
+                        Input file after clean_event.py process
+  --output_dir OUTPUT_DIR
+                        Output dir path
+  --file_prefix FILE_PREFIX
+                        Output file prefix
+```
+An example of running a command is provided as below:
+```
+python ./scripts/generate_infer_data.py --input_file /PATH/to/clean_events.txt --output_dir /PATH/to/output/dir --file_prefix Demo_prefix
+```
+
+## nanoMS training
+
 

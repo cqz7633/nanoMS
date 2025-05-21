@@ -54,7 +54,7 @@ First, prepare a file containing known m6A sites as training labels, where the f
 | ENST00000477976.5 | 2766 |
 | ENST00000379370.7 | 6241 |
 
-*NOTE:* This file contains a header.
+*NOTE:* This file contains a header and is divided by tabs.
 
 Generate training data from cleaned event data using the `generate_m6a_train.py` script.
 
@@ -78,15 +78,14 @@ python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --
 ```
 ### 2.2 Generate training data for secondary structure
 
-First, prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript. The format is as follows:
-| Trans| Position |
-|--------|---------|
-| ENST00000416718.2 | 82 |
-| ENST00000416718.2 | 145 |
-| ENST00000416718.2 | 157 |
-| ENST00000327044.7 | 1335 |
-| ENST00000477976.5 | 2766 |
-| ENST00000379370.7 | 6241 |
+First, prepare a file containing known RNA secondary structures as training labels. Here, we use icSHAPE data, where the first column is the transcript name, the second column is the transcript length, the third column is ‘*’, and each subsequent column represents the pairing score for each position in the transcript. The format is as follows:
+| Trans| Length | * | Pos1 | Pos2 | Pos3 | Pos4 | ... |
+|--------|---------|---------|---------|---------|---------|---------|---------|
+| ENST00000574232.5 | 2129 | * | 0.189 | 0.529 | 0.043 | 0.087 | ... |
+| ENST00000576646.7 | 629 | * | 0.176 | 0.347 | 0.347 | 0.871 | ... |
+| ENST00000592202.5 | 1469 | * | 0.445 | 0.012 | 0.312 | 0.546 | ... |
+
+*NOTE:* This file does not contains a header and is divided by tabs.
 
 Generate training data from cleaned event data using the `generate_m6a_train.py` script.
 

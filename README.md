@@ -1,4 +1,4 @@
-<p align="center"><img src="./images/nanoMS_logo.png" width="600px" height="300px" style="float: left;" ></p>
+<p align="center"><img src="./images/nanoMS_logo.png" width="400px" height="250px" style="float: left;" ></p>
 
 ******************
 

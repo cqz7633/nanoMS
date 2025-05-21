@@ -31,7 +31,7 @@ Example usage is as follows:
 guppy_basecaller -i /path/to/FAST5 -s /path/to/output --config /path/to/configuration
 ```
 ### 2. Align nanopore current signals to reference k-mers
-Guppy performs data trimming, filtering and basecalling, using FAST5 format files as input.
+The nanopolish eventalign module aligns raw nanopore signal events (‘squiggles’) to a reference genome.
 
 Example usage is as follows:
 ```

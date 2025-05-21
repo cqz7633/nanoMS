@@ -22,7 +22,24 @@ conda activate nanoMS
 
 ## Data processing
 We have provided demo data in the `./Data`.
-### 1. Clean events
+
+### 1. Basecalling
+Guppy performs data trimming, filtering and basecalling, using FAST5 format files as input.
+
+Example usage is as follows:
+```
+guppy_basecaller -i /path/to/FAST5 -s /path/to/output --config /path/to/configuration
+```
+### 2. Align nanopore current signals to reference k-mers
+Guppy performs data trimming, filtering and basecalling, using FAST5 format files as input.
+
+Example usage is as follows:
+```
+nanopolish eventalign --reads /path/to/reads/FASTA --bam /path/to/aligned/bam --genome /path/to/genome/FASTA --scale-events > /path/to/events/align
+```
+*NOTE:* nanopolish has been integrated into the nanoMS environment.
+
+### 3. Clean events
 Clean the current information file obtained from nanopolis using the `clean_event.py` script
 
 The parameters of the `clean_event.py` script is provided as below:
@@ -42,7 +59,7 @@ An example of running a command is provided as below:
 python ./scripts/clean_event.py --input ./data/Demo_H9_nanopolish_events.tsv --output /PATH/to/clean_events.txt --processes 12
 ```
 
-### 2.1 Generate training data for m6A sites
+### 4.1 Generate training data for m6A sites
 
 First, prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript. 
 
@@ -78,7 +95,7 @@ An example of running a command is provided as below:
 ```
 python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --output_file /PATH/to/m6A_train_data.tsv --ref_pos_file ./data/Demo_H9_ref_position.tsv
 ```
-### 2.2 Generate training data for secondary structure
+### 4.2 Generate training data for secondary structure
 
 First, prepare a file containing known RNA secondary structures as training labels. Here, we use icSHAPE data, where the first column is the transcript name, the second column is the transcript length, the third column is ‘*’, and each subsequent column represents the pairing score for each position in the transcript. The format is as follows:
 | Trans| Length | * | Pos1 | Pos2 | Pos3 | Pos4 | ... |
@@ -109,7 +126,7 @@ An example of running a command is provided as below:
 ```
 python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --output_file /PATH/to/struct_train_data.tsv --shape_file ./data/Demo_H9_shape.tsv
 ```
-### 2.3 Generate m6A sites and secondary structure data for inference
+### 4.3 Generate m6A sites and secondary structure data for inference
 
 Simultaneously generate m6A sites and secondary structure data for inference using the `generate_infer_data.py` script.
 

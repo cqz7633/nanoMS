@@ -109,7 +109,7 @@ python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --
 ```
 ### 2.3 Generate m6A sites and secondary structure data for inference
 
-Generate inferred data from cleaned event data using the `generate_infer_data.py` script.
+Simultaneously generate m6A sites and secondary structure data for inference using the `generate_infer_data.py` script.
 
 The parameters of the `generate_infer_data.py` script is provided as below:
 ```

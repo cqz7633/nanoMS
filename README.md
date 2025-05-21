@@ -21,7 +21,6 @@ conda activate nanoMS
 ```
 
 ## Data processing
-We have provided demo data in the `./Data`.
 
 ### 1. Basecalling
 Guppy performs data trimming, filtering and basecalling, using FAST5 format files as input.
@@ -42,6 +41,7 @@ nanopolish eventalign --reads /path/to/reads/FASTA --bam /path/to/aligned/bam --
 *NOTE:* nanopolish has been integrated into the nanoMS environment.
 
 ### 3. Clean events
+
 Clean the current information file obtained from nanopolis using the `clean_event.py` script
 
 The parameters of the `clean_event.py` script is provided as below:
@@ -61,6 +61,14 @@ An example of running a command is provided as below:
 python ./scripts/clean_event.py --input ./data/Demo_H9_nanopolish_events.tsv --output /PATH/to/clean_events.txt --processes 12
 ```
 
+We have provided demo data in the `./Data`.
+```
+nanoMS/
+└── data/
+    ├── Demo_H9_nanopolish_events.tsv # events data after nanopolish
+    ├── Demo_H9_ref_position.tsv # m6A position reference
+    └── Demo_H9_shape.tsv # icSHAPE data
+```
 ### 4.1 Generate training data for m6A sites
 
 First, prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript. 

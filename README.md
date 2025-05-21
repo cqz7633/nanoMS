@@ -30,6 +30,8 @@ Example usage is as follows:
 ```
 guppy_basecaller -i /path/to/FAST5 -s /path/to/output --config /path/to/configuration
 ```
+*NOTE:* The source code package of Guppy can be downloaded from [Google Drive](https://drive.google.com/file/d/1GwV80LZXV7UZQ8S81zDii_Q59kg49V_m/view?usp=sharing).
+
 ### 2. Align nanopore current signals to reference k-mers
 The nanopolish eventalign module aligns raw nanopore signal events (‘squiggles’) to a reference genome.
 

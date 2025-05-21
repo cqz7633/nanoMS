@@ -54,7 +54,8 @@ First, prepare a file containing known m6A sites as training labels, where the f
 | ENST00000477976.5 | 2766 |
 | ENST00000379370.7 | 6241 |
 
-Generate training data from cleaned event data using the `generate_m6a_train.py` script
+Generate training data from cleaned event data using the `generate_m6a_train.py` script.
+
 The parameters of the `generate_m6a_train.py` script is provided as below:
 ```
 usage: generate_m6a_train.py [-h] --input_file INPUT_FILE --output_file

@@ -5,10 +5,7 @@
 # nanoMS
 Simultaneous detection of RNA m6A and structure from direct RNA-seq data
 
-## Installation
-The installation process requires `Perl` and `Conda`, so you need to install them.
-
-### Create Environment with Conda
+## Create Environment with Conda
 First, download the repository and create the environment.
 
 ```

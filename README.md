@@ -72,7 +72,7 @@ optional arguments:
 ```
 An example of running a command is provided as below:
 ```
-python ./scripts/generate_m6a_train.py input_file /PATH/to/clean_events.txt --output_file /PATH/to/m6A_train_data.tsv --ref_pos_file ./data/Demo_H9_ref_position.tsv
+python ./scripts/generate_m6a_train.py --input_file /PATH/to/clean_events.txt --output_file /PATH/to/m6A_train_data.tsv --ref_pos_file ./data/Demo_H9_ref_position.tsv
 ```
 
 #### FastQ information file

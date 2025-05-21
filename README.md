@@ -1,11 +1,10 @@
-<p align="left"><img src="./images/nanoMS_logo.png" width="600px" height="300px" style="float: left;" ></p>
-Simultaneous detection of RNA m6A and structure from direct RNA-seq data
+<p align="center"><img src="./images/nanoMS_logo.png" width="600px" height="300px" style="float: left;" ></p>
 
 ******************
 
 # nanoMS
 <p align="center"><img src="./images/nanoMS_pipline.png" ></p>
-
+Simultaneous detection of RNA m6A and structure from direct RNA-seq data
 ## Installation
 The installation process requires `Perl` and `Conda`, so you need to install them.
 
@@ -24,30 +23,26 @@ Then, activate the `nanoMS` environment.
 conda activate nanoMS
 ```
 
-## Prepare annotation files and samples information files
+## data processing
+We have provided demo data in the `./Data`.
+### 1. Clean events
+Clean the current information file obtained from nanopolis using the `clean_event.py` script
 
-### 1. Mouse annotation(mm10) of methods
-
-We provide annotation files for the 3'UTR of mouse mm10 required for APAtrap, CSI-UTR, DaPars, diffUTR, LABRAT, and QAPA. This annotation is based on the integration of GENCODE and PolyA_DB3 databases and can be downloaded from [Google Drive](https://drive.google.com/file/d/1ki3yKC0YcGy36pWV0XFleV3_Za3rh7aQ/view?usp=drive_link).
-After downloading and decompressing, move the `mm10` directory to the `/FIAAU/anno`. The file structure is provided as below:
+The parameters of the `FIAAU_integrate.R` script is provided as below:
 ```
-FIAAU/  
-└── anno  
-   └── mm10  
-       ├── apatrap_3utr.bed  
-       ├── apatrap_anno.bed  
-       ├── csi_anno.bed  
-       ├── csi.bed  
-       ├── dapars_anno.bed  
-       ├── diffutr_anno.bed  
-       ├── labrat_anno.addhead.gff3  
-       ├── labrat_anno.addhead.gff3.db  
-       ├── mm10.chrom.sizes  
-       ├── mm10.fa  
-       ├── mm10.fa.fai  
-       ├── qapa_anno.bed  
-       ├── qapa_ident.txt  
-       └── TFseqs.fasta
+usage: clean_event.py [-h] --input INPUT --output OUTPUT
+                      [--processes PROCESSES]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         Input data file path.
+  --output OUTPUT       Output result file path.
+  --processes PROCESSES
+                        Number of processes used.
+```
+An example of running a command is provided as below:
+```
+python ./scripts/clean_event.py --input ./data/Demo_H9_nanopolish_events.tsv --output /PATH/to/clean_events.txt --processes 12
 ```
 
 ### 2. Samples information files

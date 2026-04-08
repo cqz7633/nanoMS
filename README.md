@@ -73,10 +73,8 @@ Convert Sam format to Bam format and create an index for the Bam file.
 
 Example command:
 ```
-samtools view -hbS -@ 4 /PATH/to/sam | samtools sort -@ 4 -o /PATH/to/sam -
-```
+samtools view -hbS -@ 4 /PATH/to/sam | samtools sort -@ 4 -o /PATH/to/bam -
 
-```
 samtools index -@ 4 /PATH/to/sam
 ```
 
@@ -171,7 +169,7 @@ An example of running a command is provided as below:
 python ./scripts/generate_infer_data.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/output/dir -f Demo_prefix -m both
 ```
 Path to the result file example: ./file_example/site/infer/Demo_H9_nanopolish_events.infer.m6a.tsv
-                                 ./file_example/site/infer/Demo_H9_nanopolish_events.infer.structure.tsv
+								 ./file_example/site/infer/Demo_H9_nanopolish_events.infer.structure.tsv
 
 ### 3. nanoMS inference at site level
 
@@ -210,7 +208,7 @@ python ./nanoMS_infer.py --model_dir /PATH/to/models/m6A --test_file /PATH/to/m6
 
 Output format is as follows:
 | contig | position | NeuralNetwork_Prob |
-|--------|---------|
+|--------|---------|---------|
 | ENST00000416718.2 | 82 | 0.86 |
 | ENST00000416718.2 | 145 | 0.57 |
 | ENST00000416718.2 | 157 | 0.41 |
@@ -335,7 +333,7 @@ python ./nanoMS_infer.sm.py --model_dir /PATH/to/models/m6A --test_file /PATH/to
 
 Output format is as follows:
 | contig | position | read_name | NeuralNetwork_Prob |
-|--------|---------|
+|--------|---------|---------|---------|
 | ENST00000416718.2 | 82 | read_name1 | 0.86 |
 | ENST00000416718.2 | 82 | read_name2 | 0.57 |
 | ENST00000416718.2 | 82 | read_name3 | 0.41 |
@@ -415,7 +413,7 @@ python ./scripts/generate_m6a_train.py -p 4 -i /PATH/to/clean_events.txt -o /PAT
 
 Path to the result file example: ./file_example/site/train/Demo_H9_nanopolish_events.train.structure.tsv
 
-### for m6A
+### For m6A
 Prepare a file containing known m6A sites as training labels, where the first column is the transcript name and the second column is the relative position of the m6A site within the transcript.
 
 The format is as follows:
@@ -458,7 +456,7 @@ python ./scripts/generate_m6a_train.py -p 5 -i /PATH/to/clean_events.txt -o /PAT
 
 Path to the result file example: ./file_example/site/train/Demo_H9_nanopolish_events.train.m6a.tsv
 
-## nanoMS training
+## 3. nanoMS training
 
 Train the nanoMS model using the `nanoMS_train.py script`, which accepts either structure data or m6A data as input. 
 

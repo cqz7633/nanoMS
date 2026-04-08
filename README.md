@@ -120,7 +120,7 @@ nanoMS/
 ## Site level
 ### 1. Clean events
 
-Clean the current information file obtained from nanopolis using the `clean_event.py` script
+Clean the current information file obtained from nanopolish using the `clean_event.py` script
 
 The parameters of the `clean_event.py` script is provided as below:
 ```
@@ -225,7 +225,7 @@ Output format is as follows:
 ## Single-molecule level
 ### 1. Clean events
 
-Clean the current information file obtained from nanopolis using the `clean_event.sm.py` script
+Clean the current information file obtained from nanopolish using the `clean_event.sm.py` script
 
 The parameters of the `clean_event.sm.py` script is provided as below:
 ```
@@ -352,7 +352,7 @@ Output format is as follows:
 
 ## 1. Clean events
 
-Clean the current information file obtained from nanopolis using the `clean_event.py` script
+Clean the current information file obtained from nanopolish using the `clean_event.py` script
 
 The parameters of the `clean_event.py` script is provided as below:
 ```

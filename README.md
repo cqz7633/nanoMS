@@ -28,6 +28,12 @@ conda activate nanoMS
 ```
 
 ## Option 2.  Install the environment manually using conda install
+Create and activate a conda environment with Python 3.8:
+```
+conda create -n nanoMS python=3.8
+conda activate nanoMS
+```
+
 Install the Python packages required for the nanoMS scripts and model using the following command:
 ```
 conda install pandas numpy tqdm psutil scikit-learn pytorch -c conda-forge

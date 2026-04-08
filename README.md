@@ -173,8 +173,9 @@ An example of running a command is provided as below:
 ```
 python ./scripts/generate_infer_data.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/output/dir -f Demo_prefix -m both
 ```
-Path to the result file example: ./file_example/site/infer/Demo_H9_nanopolish_events.infer.m6a.tsv
-								 ./file_example/site/infer/Demo_H9_nanopolish_events.infer.structure.tsv
+Path to the result file example: 
+./file_example/site/infer/Demo_H9_nanopolish_events.infer.m6a.tsv
+./file_example/site/infer/Demo_H9_nanopolish_events.infer.structure.tsv
 
 ### 3. nanoMS inference at site level
 

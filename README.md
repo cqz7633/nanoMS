@@ -184,8 +184,8 @@ Perform inference using the trained nanoMS model using `nanoMS_infer.py` script.
 The parameters of the `nanoMS_infer.py` script is provided as below:
 ```
 usage: nanoMS_infer.py [-h] --test_file TEST_FILE --model_dir MODEL_DIR
-                       [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE] --output_file OUTPUT_FILE
-                       [--gpu_id GPU_ID]
+                       [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE] --output_file
+                       OUTPUT_FILE [--gpu_id GPU_ID]
 
 nanoMS predictor
 
@@ -199,7 +199,8 @@ optional arguments:
                         Pre processed training data save/load file name
   --output_file OUTPUT_FILE
                         Path of output results
-  --gpu_id GPU_ID       omma-separated list of GPU IDs to use (e.g., "0,1,2")
+  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0,1,2"). If not specified, CPU will be
+                        used.
 ```
 
 The following command is an example of structural modification prediction:
@@ -324,7 +325,7 @@ optional arguments:
                         Pre processed training data save/load file name
   --output_file OUTPUT_FILE
                         Path of output results
-  --gpu_id GPU_ID       omma-separated list of GPU IDs to use (e.g., "0,1,2")
+  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0,1,2"). If not specified, CPU will be used.
 ```
 
 The following command is an example of structural modification prediction:
@@ -506,7 +507,7 @@ optional arguments:
                         Alpha parameter for focal loss.
   --focal_gamma FOCAL_GAMMA
                         Gamma parameter for focal loss.
-  --gpu_id GPU_ID       GPU ID to use (e.g., 0, 1). If not specified, uses the first available GPU.
+  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0,1,2"). If not specified, CPU will be used.
   --preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE
                         Path to save/load preprocessed training data.
   --preprocessed_test_data_file PREPROCESSED_TEST_DATA_FILE

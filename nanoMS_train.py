@@ -59,7 +59,7 @@ def read_data(file_path, ncol):
 		print(f"Error reading file: {e}")
 		return pd.DataFrame()
 	
-	expected_num_columns = ncol  # 56 numerical features + 1 label
+	expected_num_columns = ncol  # contig + position + 56 numerical features + 1 label
 	actual_num_columns = data.shape[1]
 	
 	# Calculate skipped rows
@@ -85,7 +85,7 @@ def preprocess_data(df, scaler=None, fit=True):
 	print("Starting data preprocessing...")
 
 	# Extract numerical features and labels
-	numerical_features = df.columns[:-1]  # Extract the first 56 feature columns
+	numerical_features = df.columns[:-1]  # Extract the first 58 feature columns
 	# Select numerical features
 	X_numerical = df[numerical_features].copy()
 
@@ -176,6 +176,13 @@ class mlp(nn.Module):
 		logits = self.output_layer(hidden)  # (batch_size, num_classes)
 		return logits
 
+def get_device(args):
+	if args.gpu_id and torch.cuda.is_available():
+		device_ids = [int(x) for x in args.gpu_id.split(',')]
+		device = torch.device(f'cuda:{device_ids[0]}')  # You can modify this logic based on how you want to use multiple GPUs
+		return device, device_ids
+	else:
+		return torch.device('cpu'), []
 
 def train_and_evaluate(args, data_train, data_test):
 	print("Creating datasets and dataloaders...")
@@ -201,22 +208,14 @@ def train_and_evaluate(args, data_train, data_test):
 	)
 	print("Neural network model instantiated.")
 
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-	if args.gpu_id is not None:
-		if torch.cuda.is_available():
-			if args.gpu_id < torch.cuda.device_count():
-				device = torch.device(f"cuda:{args.gpu_id}")
-				print(f"Using GPU: {device}")
-			else:
-				raise ValueError(f"Specified GPU id {args.gpu_id} exceeds available GPUs ({torch.cuda.device_count()}).")
-		else:
-			raise ValueError("CUDA is not available.")
-	else:
-		if torch.cuda.is_available():
-			print(f"Using default GPU: {device}")
-		else:
-			print("CUDA is not available. Using CPU.")
+	device, device_ids = get_device(args)
+	print(f"Using device: {device}, device_ids: {device_ids}")
+
 	nn_model.to(device)
+
+	if len(device_ids) > 1:
+		print(f"Enabling DataParallel using GPUs: {device_ids}")
+		nn_model = nn.DataParallel(nn_model, device_ids=device_ids)
 
 
 	class_weights = compute_class_weight(
@@ -393,7 +392,7 @@ def parse_arguments():
 	parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate for regularization.')
 	parser.add_argument('--focal_alpha', type=float, default=1.0, help='Alpha parameter for focal loss.')
 	parser.add_argument('--focal_gamma', type=float, default=2.0, help='Gamma parameter for focal loss.')
-	parser.add_argument('--gpu_id', type=int, default=None, help='GPU ID to use (e.g., 0, 1). If not specified, uses the first available GPU.')
+	parser.add_argument("--gpu_id", type=str, default=None, help='Comma-separated list of GPU IDs to use (e.g., "0,1,2"). If not specified, CPU will be used.')
 	parser.add_argument('--preprocessed_train_data_file', type=str, default='preprocessed_train_data.pkl', help='Path to save/load preprocessed training data.')
 	parser.add_argument('--preprocessed_test_data_file', type=str, default='preprocessed_test_data.pkl', help='Path to save/load preprocessed testing data.')
 	parser.add_argument('--save_epoch_model', action='store_true', help='Save the model for each epoch')
@@ -437,7 +436,7 @@ def main():
 		print("Reading training data...")
 		train_df = read_data(args.train_file, args.ncol)
 		if train_df.shape[1] != args.ncol:
-			print(f"Training data column count mismatch. Expected {args.ncol} columns (56 numerical features + 1 label), but found {train_df.shape[1]} columns.")
+			print(f"Training data column count mismatch. Expected {args.ncol} columns (contig + position + 56 numerical features + 1 label), but found {train_df.shape[1]} columns.")
 			return
 		if train_df.empty:
 			print("No valid data read from training file. Please check data file format.")
@@ -447,7 +446,7 @@ def main():
 			print("Reading testing data...")
 			test_df = read_data(args.valid_file, args.ncol)
 			if test_df.shape[1] != args.ncol:
-				print(f"Testing data column count mismatch. Expected {args.ncol} columns (56 numerical features + 1 label), but found {test_df.shape[1]} columns.")
+				print(f"Testing data column count mismatch. Expected {args.ncol} columns (contig + position + 56 numerical features + 1 label), but found {test_df.shape[1]} columns.")
 				return
 			if test_df.empty:
 				print("No valid data read from testing file. Please check data file format.")

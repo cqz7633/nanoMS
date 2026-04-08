@@ -1,196 +1,228 @@
 import sys
 import csv
-from tqdm import tqdm
 import argparse
 import os
-import pandas as pd
-import numpy as np
+import math
+import threading
+from tqdm import tqdm
+import multiprocessing as mp
 
-def parse_arguments():
-	parser = argparse.ArgumentParser(description=" Generate m6A sites and secondary structure data for inference.")
-	parser.add_argument("--input_file", type=str, required=True, help="Input file after clean_event.py process")
-	parser.add_argument("--output_dir", type=str, required=True, help="Output dir path")
-	parser.add_argument("--file_prefix", type=str, required=True, help="Output file prefix")
-	return parser.parse_args()
-
-def extract_modules(input_file):
-	module_list = []
-	with open(input_file, 'r') as infile:
-		reader = csv.DictReader(infile, delimiter='\t')
-		#writer = csv.writer(outfile, delimiter='\t')
-
-		module_list.append("\t".join(reader.fieldnames))
-		rows = list(reader)
-		total_rows = len(rows)
-		
-		progress = tqdm(range(3, total_rows - 3), desc="Processing", unit="module")
-		for i in progress:
-			module = rows[i-3:i+4]
-			contigs = {row['contig'] for row in module}
-			if len(contigs) != 1:
-				continue
-
-			
-			positions = [int(row['position']) for row in module]
-			expected_positions = list(range(positions[0], positions[0] + 7))
-			if positions != expected_positions:
-				continue
-			for row in module:
-				module_list.append("\t".join([row[field] for field in reader.fieldnames]))
-			module_list.append("----")
-
-		progress.close()
-	return module_list
-
+# Global DRACH rule dictionary
 valid_first_bases = {
-	'D': ['A', 'G', 'T'],  # D -> A, G, T (T is used for U)
-	'R': ['A', 'G'],       # R -> A, G
-	'A': ['A'],            # A -> A
-	'C': ['C'],            # C -> C
-	'H': ['A', 'C', 'T']   # H -> A, C, T (T is used for U)
+    'D': {'A', 'G', 'T'},
+    'R': {'A', 'G'},
+    'A': {'A'},
+    'C': {'C'},
+    'H': {'A', 'C', 'T'}
 }
 
-# 判断一个碱基是否符合DRACH规则
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Generate m6A sites and secondary structure data for inference at the site level.")
+    parser.add_argument("-i", "--input_file", type=str, required=True, help="Input file after clean_event.py process")
+    parser.add_argument("-o", "--output_dir", type=str, required=True, help="Output dir path")
+    parser.add_argument("-f", "--file_prefix", type=str, required=True, help="Output file prefix")
+    parser.add_argument("-p", "--processes", type=int, default=4, help="Number of processes to use (default: 4)")
+    parser.add_argument("-m", "--mode", type=str, choices=['both', 'm6a', 'structure'], default='both',
+                        help="Choose outputs: 'both' (default), 'm6a' (only m6a sites), 'structure' (only structure)")
+    return parser.parse_args()
+
 def is_valid_drach_sequence(kmer_sequence):
+    if len(kmer_sequence) != 5: return False
+    if kmer_sequence[0] not in valid_first_bases['D']: return False
+    if kmer_sequence[1] not in valid_first_bases['R']: return False
+    if kmer_sequence[2] != 'A': return False
+    if kmer_sequence[3] != 'C': return False
+    if kmer_sequence[4] not in valid_first_bases['H']: return False
+    return True
 
-	if len(kmer_sequence) != 5:
-		return False  # 确保长度为5
+def get_file_info(filepath):
+    """Extract header information and generate new header"""
+    with open(filepath, 'r') as f:
+        reader = csv.reader(f, delimiter='\t')
+        fields = next(reader)
+        
+    contig_idx = fields.index('contig')
+    pos_idx = fields.index('position')
+    kmer_idx = fields.index('reference_kmer')
+    
+    data_indices = [i for i, f in enumerate(fields) if f not in ('contig', 'position', 'reference_kmer')]
+    data_cols = [fields[i] for i in data_indices]
+    
+    new_header = ["contig", "position"]
+    for i in range(-3, 4):
+        prefix = f"+{i}" if i > 0 else str(i)
+        for col_name in data_cols:
+            new_header.append(f"{prefix}_{col_name}")
+    new_header.append("label")
+    
+    return contig_idx, pos_idx, kmer_idx, data_indices, new_header
 
-	# 第一个碱基：符合D规则
-	if kmer_sequence[0] not in valid_first_bases['D']:
-		return False
-	# 第二个碱基：符合R规则
-	if kmer_sequence[1] not in valid_first_bases['R']:
-		return False
-	# 第三个碱基：必须是A
-	if kmer_sequence[2] != 'A':
-		return False
-	# 第四个碱基：必须是C
-	if kmer_sequence[3] != 'C':
-		return False
-	# 第五个碱基：符合H规则
-	if kmer_sequence[4] not in valid_first_bases['H']:
-		return False
-	
-	return True
+def reader_thread_func(filepath, chunk_size, overlap, task_q, num_workers):
+    """Independent thread: responsible for streaming the file. Blocks automatically when the queue is full, perfectly controlling memory."""
+    with open(filepath, 'r') as f:
+        next(f)  # Skip header
+        chunk = []
+        for line in f:
+            chunk.append(line)
+            if len(chunk) == chunk_size:
+                task_q.put(chunk)  # If the queue is full, it will pause and wait here
+                chunk = chunk[-overlap:]  # Keep the last 6 lines as overlap
+        if len(chunk) > overlap:
+            task_q.put(chunk)
+            
+    # Send termination signal to all worker processes
+    for _ in range(num_workers):
+        task_q.put(None)
 
-def filter_modules(module_list):
-	flt_modules = []
-	
-	modules = []
-	current_module = []
-	
-	for line in module_list:
+def worker_process_func(task_q, res_q, mode, contig_idx, pos_idx, kmer_idx, data_indices):
+    """Core of multiprocessing: only process assigned task chunks"""
+    while True:
+        chunk_lines = task_q.get()
+        if chunk_lines is None:
+            res_q.put(None)  # Tell the main process that this process has finished
+            break
+            
+        # Split strings in the child process to reduce main process overhead
+        chunk_rows = [line.rstrip('\n').split('\t') for line in chunk_lines]
+        
+        stru_res = []
+        m6a_res = []
+        
+        for i in range(len(chunk_rows) - 6):
+            window = chunk_rows[i:i+7]
+            
+            contig0 = window[0][contig_idx]
+            if any(row[contig_idx] != contig0 for row in window[1:]): continue
+                
+            try:
+                pos0 = int(window[0][pos_idx])
+                if any(int(window[j][pos_idx]) != pos0 + j for j in range(1, 7)): continue
+            except ValueError:
+                continue
+                
+            is_valid = True
+            features = []
+            for row in window:
+                for idx in data_indices:
+                    try:
+                        val = float(row[idx])
+                        if math.isnan(val) or math.isinf(val):
+                            is_valid = False
+                            break
+                        features.append(str(val))
+                    except ValueError:
+                        is_valid = False
+                        break
+                if not is_valid: break
+            if not is_valid: continue
+                
+            center_row = window[3]
+            target_contig = center_row[contig_idx]
+            target_pos = center_row[pos_idx]  # Directly take the position string from original data
+            
+            # Concatenate directly into the final string for writing, saving massive memory
+            out_str = target_contig + '\t' + target_pos + '\t' + '\t'.join(features) + '\t-1\n'
+            
+            if mode in ['both', 'structure']:
+                stru_res.append(out_str)
+                
+            if mode in ['both', 'm6a']:
+                kmer_sequence = window[1][kmer_idx]
+                if is_valid_drach_sequence(kmer_sequence):
+                    m6a_res.append(out_str)
+                    
+        # Push results into the output queue
+        res_q.put((stru_res, m6a_res))
 
-		if line.startswith("----"):  
-			if current_module:
-				modules.append(current_module)
-			current_module = []
-		elif line:  # 非空行
-			current_module.append(line.split())
-
-
-	if current_module:
-		modules.append(current_module)
-
-	# f.write("\t".join(module_list[0].split()) + "\n")
-	flt_modules.append("\t".join(module_list[0].split()))
-	for module in tqdm(modules, desc="Processing modules", unit="module"):
-		kmer_sequence = module[1][2]
-		#kmer_sequence = ''.join([row[2][0] for row in module[1:6]])  
-		if is_valid_drach_sequence(kmer_sequence):
-			for row in module:
-				flt_modules.append("\t".join(row))
-				# f.write("\t".join(row) + "\n")
-			# f.write("----\n")
-			flt_modules.append("----")
-	return flt_modules
-
-def merge_module(flt_modules, output_file):
-
-	header = flt_modules[0].split('\t')
-
-	modules = []
-	current_module = []
-	for line in flt_modules[1:]:
-		# line = line.strip()
-		if line == '----':
-			if current_module:
-				modules.append(current_module)
-			current_module = []
-		elif line:
-			current_module.append(line.split('\t'))
-	if current_module:
-		modules.append(current_module)
-
-	new_header = ["contig", "position"]
-	data_cols = header[2:]
-	offsets = range(-3, 4)
-	for i in offsets:
-		prefix = f"+{i}" if i > 0 else str(i)
-		for col_name in data_cols:
-			new_header.append(f"{prefix}_{col_name}")
-	merge_list = []
-	for module in tqdm(modules, desc="Processing Modules"):
-		fourth_line = module[3]
-		contig_4th = fourth_line[0]
-		position_4th = fourth_line[1]
-		merged_row = [contig_4th, position_4th]
-		for idx, row in enumerate(module):
-			data_values = row[2:]
-			merged_row.extend(data_values)
-		merge_list.append(merged_row)
-		# out_file.write('\t'.join(merged_row) + '\n')
-	merge_df = pd.DataFrame(merge_list, columns = new_header)
-	columns_to_drop = [col for col in merge_df.columns if 'reference_kmer' in col]
-	merge_df = merge_df.drop(columns=columns_to_drop)
-
-	# filter nan inf
-	numeric_df = merge_df[merge_df.columns[2:]].apply(pd.to_numeric, errors='coerce')
-	if numeric_df.shape[0] != 0:
-		mask = (
-			numeric_df.isna().any(axis=1) |          # 检查NaN
-			np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
-		)
-		merge_df = merge_df[~mask]
-		removed_count = mask.sum()
-		if removed_count > 0:
-			print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
-		else:
-			print("No samples containing NaN or nf/- nf were found.")
-		merge_df["label"] = -1
-		merge_df.to_csv(output_file, sep="\t", index=False)
-	else:
-		print("Error: The merged module is empty.")
-		sys.exit()
+def get_total_lines(filepath):
+    with open(filepath, 'rb') as f:
+        return sum(1 for _ in f) - 1
 
 def main():
-	args = parse_arguments()
-	input_file = args.input_file
-	output_dir = args.output_dir
-	output_prefix = args.file_prefix
+    args = parse_arguments()
 
-	if not os.path.exists(input_file):
-		print(f"Error: The file {input_file} does not exist.")
-		return
+    if not os.path.exists(args.input_file):
+        print(f"Error: The file {args.input_file} does not exist.")
+        sys.exit(1)
 
-	if not os.path.exists(output_dir):
-		print(f"Error: Path '{output_dir}' does not exist！")
-		sys.exit(1) 
-	site_output = os.path.join(output_dir, output_prefix+".m6a.tsv") 
-	stru_output = os.path.join(output_dir, output_prefix+".structure.tsv") 
+    site_output = os.path.join(args.output_dir, args.file_prefix + ".m6a.tsv") 
+    stru_output = os.path.join(args.output_dir, args.file_prefix + ".structure.tsv") 
 
-	module_list = extract_modules(input_file)
-	print(f"Module extraction complete.\n")
+    contig_idx, pos_idx, kmer_idx, data_indices, new_header = get_file_info(args.input_file)
+    
+    print(f"Counting lines in {args.input_file}...")
+    total_lines = get_total_lines(args.input_file)
+    chunk_size = 50000
+    overlap = 6
+    total_chunks = (total_lines // (chunk_size - overlap)) + 1
 
-	merge_module(module_list, stru_output)
-	print(f"Merge structure modules saved to {stru_output}.")
+    # Prepare for file writing
+    f_m6a = open(site_output, 'w') if args.mode in ['both', 'm6a'] else None
+    f_stru = open(stru_output, 'w') if args.mode in ['both', 'structure'] else None
+    
+    header_str = '\t'.join(new_header) + '\n'
+    if f_m6a: f_m6a.write(header_str)
+    if f_stru: f_stru.write(header_str)
 
-	flt_modules = filter_modules(module_list)
-	print(f"Filtered DRACH sites.\n")
+    print(f"Processing with {args.processes} processes (Mode: {args.mode.upper()})")
+    
+    # === Core optimization: Use bounded queues to strictly limit memory ===
+    task_queue = mp.Queue(maxsize=args.processes * 2)
+    result_queue = mp.Queue(maxsize=args.processes * 2)
 
-	merge_module(flt_modules, site_output)
-	print(f"Merge m6a sites modules saved to {site_output}.")
+    # 1. Start an independent reader thread
+    reader_thread = threading.Thread(
+        target=reader_thread_func, 
+        args=(args.input_file, chunk_size, overlap, task_queue, args.processes)
+    )
+    reader_thread.start()
+
+    # 2. Start multiple consumer processes
+    workers = []
+    for _ in range(args.processes):
+        p = mp.Process(
+            target=worker_process_func,
+            args=(task_queue, result_queue, args.mode, contig_idx, pos_idx, kmer_idx, data_indices)
+        )
+        p.start()
+        workers.append(p)
+
+    m6a_count = 0
+    stru_count = 0
+    active_workers = args.processes
+
+    # 3. The main process is responsible for listening to results and safely writing to disk in a single thread
+    with tqdm(total=total_chunks, desc="Processing Modules") as pbar:
+        while active_workers > 0:
+            res = result_queue.get()
+            if res is None:
+                active_workers -= 1
+            else:
+                stru_res, m6a_res = res
+                
+                if f_stru and stru_res:
+                    f_stru.writelines(stru_res)
+                    stru_count += len(stru_res)
+                    
+                if f_m6a and m6a_res:
+                    f_m6a.writelines(m6a_res)
+                    m6a_count += len(m6a_res)
+                    
+                pbar.update(1)
+
+    # Cleanup
+    reader_thread.join()
+    for p in workers:
+        p.join()
+
+    if f_m6a: f_m6a.close()
+    if f_stru: f_stru.close()
+
+    print("\nProcessing Complete!")
+    if args.mode in ['both', 'structure']:
+        print(f"Extracted {stru_count} Structure modules saved to {stru_output}")
+    if args.mode in ['both', 'm6a']:
+        print(f"Extracted {m6a_count} Filtered DRACH sites saved to {site_output}")
 
 if __name__ == "__main__":
-	main()
+    main()

@@ -1,337 +1,216 @@
 import sys
 import csv
-from tqdm import tqdm
 import argparse
 import os
 import pandas as pd
 import numpy as np
-import random
-import re
+from tqdm import tqdm
+import multiprocessing as mp
+from functools import partial
+
+# Numerical feature columns to extract
+DATA_COLS = [
+    "event_level_mean", "event_stdv", "event_length", "standardized_level", 
+    "event_level_median", "event_stdv_median", "event_length_median", "diff_stdv"
+]
+
+# Declare a global variable for child processes to share data (avoids huge memory consumption from passing large dictionaries in multiprocessing)
+global_struct_dict = {}
 
 def parse_arguments():
-	parser = argparse.ArgumentParser(description="Filter modules based on DRACH rule.")
-	parser.add_argument("--input_file", required=True, type=str, help="Input file after clean_event.py process")
-	parser.add_argument("--output_file", required=True, type=str, help="Output file path")
-	parser.add_argument("--shape_file", required=True, type=str, help="Reference icshape file")
-	return parser.parse_args()
+    parser = argparse.ArgumentParser(description="Extract context features of the structural modification at the site level for training.")
+    parser.add_argument("-i", "--input_file", required=True, type=str, help="Input file after clean_event.py process")
+    parser.add_argument("-o", "--output_file", required=True, type=str, help="Output file path")
+    parser.add_argument("-r", "--ref_shape_file", required=True, type=str, help="Reference icshape file")
+    parser.add_argument("-p", "--processes", type=int, default=4, help="Number of parallel processes (default: 4)")
+    return parser.parse_args()
 
-def extract_modules(input_file):
-	module_list = []
-	with open(input_file, 'r') as infile:
-		reader = csv.DictReader(infile, delimiter='\t')
-		#writer = csv.writer(outfile, delimiter='\t')
+def init_worker(shared_dict):
+    """Initialize the global dictionary for child processes"""
+    global global_struct_dict
+    global_struct_dict = shared_dict
 
-		module_list.append("\t".join(reader.fieldnames))
-		rows = list(reader)
-		total_rows = len(rows)
-		
-		progress = tqdm(range(3, total_rows - 3), desc="Processing", unit="module")
-		for i in progress:
-			module = rows[i-3:i+4]
-			contigs = {row['contig'] for row in module}
-			if len(contigs) != 1:
-				continue
-			positions = [int(row['position']) for row in module]
-			expected_positions = list(range(positions[0], positions[0] + 7))
-			if positions != expected_positions:
-				continue
-			for row in module:
-				module_list.append("\t".join([row[field] for field in reader.fieldnames]))
-			module_list.append("----")
+def read_icshape_optimized(shape_file):
+    """Optimized version of icshape reading, using numpy float32 to save a large amount of memory"""
+    struct_dict = {}
+    with open(shape_file, "r") as sf:
+        for line in tqdm(sf, desc="Loading icshape"):
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split('\t')
+            contig = cols[0].split('|')[0].strip()
+            
+            if len(cols) < 4:
+                struct_dict[contig] = np.array([], dtype=np.float32)
+                continue
+                
+            scores = []
+            for val in cols[3:]:
+                if val == 'NULL':
+                    scores.append(np.nan)
+                else:
+                    try:
+                        scores.append(float(val))
+                    except ValueError:
+                        scores.append(np.nan)
+            struct_dict[contig] = np.array(scores, dtype=np.float32)
+    return struct_dict
 
-		progress.close()
-	return module_list
+def chunk_generator(filepath, chunk_size=100000, overlap=6):
+    """
+    Streaming generator for large files.
+    Keep overlap (6 rows) to ensure 7-mer modules are not truncated at chunk boundaries
+    """
+    with open(filepath, 'r') as f:
+        reader = csv.DictReader(f, delimiter='\t')
+        chunk = []
+        for row in reader:
+            chunk.append(row)
+            if len(chunk) == chunk_size:
+                yield chunk
+                chunk = chunk[-overlap:]  # Keep the last 6 rows as the beginning of the next chunk
+        if len(chunk) > overlap:
+            yield chunk
 
-valid_first_bases = {
-	'D': ['A', 'G', 'T'],  # D -> A, G, T (T is used for U)
-	'R': ['A', 'G'],       # R -> A, G
-	'A': ['A'],            # A -> A
-	'C': ['C'],            # C -> C
-	'H': ['A', 'C', 'T']   # H -> A, C, T (T is used for U)
-}
+def process_chunk(chunk_rows):
+    """Multiprocessing worker function: Completes continuity check, flatten, scoring, filtering, NaN removal, etc. within a window"""
+    global global_struct_dict
+    results = []
+    
+    for i in range(len(chunk_rows) - 6):
+        window = chunk_rows[i:i+7]
+        
+        # 1. Check contig consistency
+        contig0 = window[0]['contig'].split('|')[0].strip()
+        if any(row['contig'].split('|')[0].strip() != contig0 for row in window[1:]):
+            continue
+            
+        # 2. Check continuity
+        try:
+            pos0 = int(window[0]['position'])
+            if any(int(window[j]['position']) != pos0 + j for j in range(1, 7)):
+                continue
+        except ValueError:
+            continue
+            
+        # 3. Label value extraction & filtering (7-mer center is the 4th, i.e., index 3)
+        pos4 = pos0 + 3
+        contig4 = contig0
+        
+        scores = global_struct_dict.get(contig4)
+        if scores is None or pos4 < 0 or pos4 >= len(scores):
+            continue
+            
+        label_val = scores[pos4]
+        if np.isnan(label_val):
+            continue
+            
+        # Filter label based on original logic
+        if label_val <= 0.2:
+            final_label = 0
+        elif label_val >= 0.8:
+            final_label = 1
+        else:
+            continue  # Discard data between 0.2 and 0.8, and invalid data
+            
+        # 4. Feature flattening extraction & real-time NaN/Inf filtering
+        is_valid = True
+        features = []
+        for row in window:
+            for col in DATA_COLS:
+                try:
+                    val = float(row[col])
+                    if np.isnan(val) or np.isinf(val):
+                        is_valid = False
+                        break
+                    features.append(val)
+                except ValueError:
+                    is_valid = False
+                    break
+            if not is_valid:
+                break
+                
+        if is_valid:
+            # Assemble results: [contig, position] + features + [label]
+            results.append([contig4, pos4] + features + [final_label])
+            
+    return results
 
-# 判断一个碱基是否符合DRACH规则
-def is_valid_drach_sequence(kmer_sequence):
-
-	if len(kmer_sequence) != 5:
-		return False  # 确保长度为5
-
-	# 第一个碱基：符合D规则
-	if kmer_sequence[0] not in valid_first_bases['D']:
-		return False
-	# 第二个碱基：符合R规则
-	if kmer_sequence[1] not in valid_first_bases['R']:
-		return False
-	# 第三个碱基：必须是A
-	if kmer_sequence[2] != 'A':
-		return False
-	# 第四个碱基：必须是C
-	if kmer_sequence[3] != 'C':
-		return False
-	# 第五个碱基：符合H规则
-	if kmer_sequence[4] not in valid_first_bases['H']:
-		return False
-	
-	return True
-
-
-# 读取结合位点文件，生成一个包含匹配项的集合
-def read_icshape(shape_file):
-	struct_dict = {}
-	with open(shape_file, "r") as sf:
-		for line in sf:
-			line = line.strip()
-			if not line:
-				continue
-			cols = line.split('\t')
-			if len(cols) < 4:
-				contig = cols[0]
-				struct_dict[contig] = []
-				continue
-			contig = cols[0]
-			structure_scores = cols[3:]
-			if contig not in struct_dict:
-				struct_dict[contig] = structure_scores
-	return struct_dict
-
-# 处理电流数据文件，进行匹配并输出结果
-def process_current_data(flt_modules, binding_sites):
-	lines = flt_modules
-	matched_modules = []
-	unmatched_modules = []
-	module = []
-	
-	# 处理标题行
-	header = lines[0].strip()
-	matched_modules.append(header)
-	unmatched_modules.append(header)
-
-	# 创建进度条
-	total_lines = len(lines)
-	for line in tqdm(lines[1:], desc="Processing modules", total=total_lines-1):  # 跳过标题行
-		line = line.strip()
-		if line == "----":  # 模块之间的分隔符
-			if module:
-				# 获取当前模块的第5个条目的 contig 和 position
-				contig, position = module[4].split('\t')[:2]  # 修改为第5个条目
-				contig = re.match(r'^ENST\d+\.\d+', contig).group(0)
-				print(contig)
-				position = int(position)
-				
-				# 判断是否匹配
-				if (contig, position) in binding_sites:
-					matched_modules += module + ["----"]
-				else:
-					unmatched_modules += module + ["----"]
-			module = []
-		else:
-			module.append(line)
-	
-	# 处理最后一个模块
-	if module:
-		contig, position = module[4].split('\t')[:2]  # 修改为第5个条目
-		position = int(position)
-		
-		if (contig, position) in binding_sites:
-			matched_modules += module + ["----"]
-		else:
-			unmatched_modules += module + ["----"]
-	
-	return matched_modules, unmatched_modules
-
-def merge_module(flt_modules):
-
-	header = flt_modules[0].split('\t')
-
-	modules = []
-	current_module = []
-	for line in flt_modules[1:]:
-		# line = line.strip()
-		if line == '----':
-			if current_module:
-				modules.append(current_module)
-			current_module = []
-		elif line:
-			current_module.append(line.split('\t'))
-	if current_module:
-		modules.append(current_module)
-
-	new_header = ["contig", "position"]
-	data_cols = header[2:]
-	offsets = range(-3, 4)
-	for i in offsets:
-		prefix = f"+{i}" if i > 0 else str(i)
-		for col_name in data_cols:
-			new_header.append(f"{prefix}_{col_name}")
-	merge_list = []
-	for module in tqdm(modules, desc="Processing Modules"):
-		fourth_line = module[3]
-		contig_4th = fourth_line[0]
-		position_4th = fourth_line[1]
-		merged_row = [contig_4th, position_4th]
-		for idx, row in enumerate(module):
-			data_values = row[2:]
-			merged_row.extend(data_values)
-		merge_list.append(merged_row)
-		# out_file.write('\t'.join(merged_row) + '\n')
-	merge_df = pd.DataFrame(merge_list, columns = new_header)
-	columns_to_drop = [col for col in merge_df.columns if 'reference_kmer' in col]
-	merge_df = merge_df.drop(columns=columns_to_drop)
-
-	# filter nan inf
-	numeric_df = merge_df[merge_df.columns[2:]].apply(pd.to_numeric, errors='coerce')
-	if numeric_df.shape[0] != 0:
-		mask = (
-			numeric_df.isna().any(axis=1) |          # 检查NaN
-			np.isinf(numeric_df).any(axis=1)        # 检查inf/-inf
-		)
-		merge_df = merge_df[~mask]
-		removed_count = mask.sum()
-		if removed_count > 0:
-			print(f"Remove {removed_count} lines containing NaN or inf/-inf.")
-		else:
-			print("No samples containing NaN or nf/- nf were found.")
-
-		header = "\t".join(merge_df.columns)
-
-		# 2. 用 "\t".join() 拼接每一行
-		rows = ["\t".join(map(str, row)) for row in merge_df.values]
-
-		# 3. 组合成列表，列名作为第一个元素
-		res_list = [header] + rows
-	else:
-		print("Error: The merged module is empty.")
-		sys.exit()
-	return res_list
-
-def extract_shape(merge_list, struct_dict):
-	add_struct_list = []
-	lines = merge_list
-	if not lines:
-		print("The current file is empty and has been exited.")
-		return
-	header = lines[0].split('\t')
-	header.append("label")
-	add_struct_list.append("\t".join(header))
-
-	for line in tqdm(lines[1:], desc="Processing current file"):
-		line = line.strip()
-		if not line:
-			continue
-		cols = line.split('\t')
-		if len(cols) < 2:
-			cols.append("NULL")
-			add_struct_list.append("\t".join(cols))
-			continue
-		contig = cols[0]
-		contig = re.match(r'^ENST\d+\.\d+', contig).group(0)
-		pos_str = cols[1]
-		try:
-			position = int(pos_str)
-		except ValueError:
-			cols.append("NULL")
-			add_struct_list.append("\t".join(cols))
-			continue
-		label = "NULL"
-		if contig in struct_dict:
-			scores = struct_dict[contig]
-			idx = position
-			if 0 <= idx < len(scores):
-				label = scores[idx]
-		cols.append(label)
-		add_struct_list.append("\t".join(cols))
-	return add_struct_list
-
-def is_valid_label(value):
-	if value == "NULL":
-		return False
-	try:
-		num = float(value)
-		return num <= 0.2 or num >= 0.8
-	except ValueError:
-		return False
-
-def filter_structure(add_struct_list):
-	lines = add_struct_list
-	if not lines:
-		print("The input file is empty.")
-		return
-
-	header = lines[0]
-	data_lines = lines[1:]
-	flt_struct_list = []
-	flt_struct_list.append(header)
-	for line in tqdm(data_lines, desc="Filtering lines"):
-		if not line.strip():
-			continue
-		cols = line.split('\t')
-		label = cols[-1]  # 最后一列是 label
-		if is_valid_label(label):
-			flt_struct_list.append(line)
-	return flt_struct_list
-
-def convert_label(label_value):
-	if label_value == "NULL":
-		return label_value
-	try:
-		num = float(label_value)
-		if num <= 0.2:
-			return "0"
-		elif num >= 0.8:
-			return "1"
-		else:
-			return label_value
-	except ValueError:
-		return label_value
-
-def convert_structure(flt_struct_list, output_file):
-	lines = flt_struct_list
-	if not lines:
-		print("The input file is empty.")
-		return
-
-	header = lines[0]
-	data_lines = lines[1:]
-	conver_struct_list = []
-	conver_struct_list.append(header)
-	for line in tqdm(data_lines, desc="Converting label values"):
-		if not line.strip():
-			continue
-		cols = line.split('\t')
-		# 处理最后一列（label）
-		cols[-1] = convert_label(cols[-1])
-		conver_struct_list.append('\t'.join(cols))
-	with open(output_file, 'w') as out:
-		for line in tqdm(conver_struct_list, desc="Writing output"):
-			out.write(line + '\n')
+def get_total_lines(filepath):
+    """Quickly estimate the number of file lines to configure the progress bar"""
+    with open(filepath, 'rb') as f:
+        return sum(1 for _ in f)
 
 def main():
+    args = parse_arguments()
+    input_file = args.input_file
+    output_file = args.output_file
+    shape_file = args.ref_shape_file
+    threads = args.processes
 
-	args = parse_arguments()
-	input_file = args.input_file
-	output_file = args.output_file
-	shape_file = args.shape_file
+    if not os.path.exists(input_file):
+        print(f"Error: The file {input_file} does not exist.")
+        return
 
+    # 1. Memory optimization: Load scoring dictionary
+    print("\n[1/4] Loading structure dict...")
+    struct_dict = read_icshape_optimized(shape_file)
 
-	if not os.path.exists(input_file):
-		print(f"Error: The file {input_file} does not exist.")
-		return
+    # 2. Prepare for parallel processing
+    print(f"\n[2/4] Processing modules with {threads} processes...")
+    total_lines = get_total_lines(input_file)
+    chunk_size = 50000
+    total_chunks = (total_lines // chunk_size) + 1
+    
+    # Build header (strictly consistent with the original code in format and order)
+    new_header = ["contig", "position"]
+    offsets = range(-3, 4)
+    for i in offsets:
+        prefix = f"+{i}" if i > 0 else str(i)
+        for col_name in DATA_COLS:
+            new_header.append(f"{prefix}_{col_name}")
+    new_header.append("label")
 
-	module_list = extract_modules(input_file)
-	print(f"Module extraction complete.\n")
+    # Create multiprocessing pool
+    pool = mp.Pool(processes=threads, initializer=init_worker, initargs=(struct_dict,))
+    generator = chunk_generator(input_file, chunk_size=chunk_size, overlap=6)
+    
+    # Parallel processing and real-time result collection
+    all_valid_results = []
+    with tqdm(total=total_chunks, desc="Processing chunks") as pbar:
+        for res_chunk in pool.imap_unordered(process_chunk, generator):
+            all_valid_results.extend(res_chunk)
+            pbar.update(1)
+            
+    pool.close()
+    pool.join()
 
-	merge_list = merge_module(module_list)
-	print(f"Merge structure modules.\n")
+    # Clean up the huge shared dictionary to release memory
+    del struct_dict 
 
-	struct_dict = read_icshape(shape_file)
-	add_struct_list = extract_shape(merge_list, struct_dict)
+    if not all_valid_results:
+        print("Error: The filtered and merged module is empty. Exiting.")
+        sys.exit()
 
-	flt_struct_list = filter_structure(add_struct_list)
-	if len(flt_struct_list) < 2:
-		print("Warning: The filtered structural module is empty.")
-		sys.exit()
-	convert_structure(flt_struct_list, output_file)
+    print(f"\nExtracted {len(all_valid_results)} valid samples before duplicate removal.")
 
+    # 3. Result merging and deduplication
+    print("\n[3/4] Converting to DataFrame & Dropping duplicates...")
+    df = pd.DataFrame(all_valid_results, columns=new_header)
+    
+    # Determine feature column range for deduplication (strictly aligned with original code: from the third column to the second to last)
+    feature_cols = df.columns[2:-1]
+    
+    # Mark all duplicate rows (including all repeated instances) and discard them
+    duplicates_mask = df.duplicated(subset=feature_cols, keep=False)
+    df_flt = df[~duplicates_mask]
+    
+    # 4. Save file
+    print("\n[4/4] Saving output...")
+    df_flt.to_csv(output_file, sep="\t", index=False)
+    print(f"Success! Filtered dataframe shape: {df_flt.shape}")
+    print(f"Output saved as {output_file}.")
 
 if __name__ == "__main__":
-	main()
+    main()

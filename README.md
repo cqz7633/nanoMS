@@ -4,7 +4,7 @@
 
 # nanoMS
 
-Simultaneous detection of RNA m6A and structure from direct RNA-seq data.
+Detecting RNA structural modifications and m6A from nanopore direct RNA sequencing data using deep learning.
 <p align="center"><img src="./images/nanoMS_pipline.png"></p>
 
 # Create Environment with Conda

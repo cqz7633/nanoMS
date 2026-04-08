@@ -94,7 +94,7 @@ nanopolish index --directory=/PATH/to/guppy/workspace --sequencing-summary=/PATH
 ## 6. Align nanopore current signals to reference k-mers
 The nanopolish eventalign module aligns raw nanopore signal events (‘squiggles’) to a reference genome.
 
-Example usage is as follows:
+Example command:
 ```
 nanopolish eventalign -t 4 --signal-index --print-read-names --reads /PATH/to/merged/fastq --bam /PATH/to/bam --genome /PATH/to/transcript/fasta --summary /PATH/to/nanopolish/summary --scale-events > /PATH/to/events/align
 ```
@@ -139,7 +139,7 @@ optional arguments:
   -c CHUNK_SIZE, --chunk_size CHUNK_SIZE
                         chunk size
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/clean_event.py -i ./data/Demo_H9_nanopolish_events.tsv -o /PATH/to/clean_events.txt -p 4
 ```
@@ -169,7 +169,7 @@ optional arguments:
   -m {both,m6a,structure}, --mode {both,m6a,structure}
                         Choose outputs: 'both' (default), 'm6a' (only m6a sites), 'structure' (only structure)
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/generate_infer_data.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/output/dir -f Demo_prefix -m both
 ```
@@ -245,7 +245,7 @@ optional arguments:
   -c CHUNK_SIZE, --chunk_size CHUNK_SIZE
                         Number of rows per chunk
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/clean_event.sm.py -i ./data/Demo_H9_nanopolish_events.tsv -o /PATH/to/Single-molecule/clean_events.txt -p 4
 ```
@@ -272,7 +272,7 @@ optional arguments:
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/generate_struct_infer.sm.py -p 4 -i /PATH/to/Single-molecule/clean_events.txt -o /PATH/to/output
 ```
@@ -297,7 +297,7 @@ optional arguments:
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes (default: 4)
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/generate_m6a_infer.sm.py -p 4 -i /PATH/to/Single-molecule/clean_events.txt -o /PATH/to/output
 ```
@@ -372,7 +372,7 @@ optional arguments:
   -c CHUNK_SIZE, --chunk_size CHUNK_SIZE
                         chunk size
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/clean_event.py -i ./data/Demo_H9_nanopolish_events.tsv -o /PATH/to/clean_events.txt -p 4
 ```
@@ -413,7 +413,7 @@ optional arguments:
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes (default: 4)
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/generate_m6a_train.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/struct_train_data.tsv -r ./data/Demo_H9_shape.tsv
 ```
@@ -456,7 +456,7 @@ optional arguments:
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes (default: 4)
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./scripts/generate_m6a_train.py -p 5 -i /PATH/to/clean_events.txt -o /PATH/to/m6A_train_data.tsv -r ./data/Demo_H9_ref_position.tsv -b 0
 ```
@@ -518,7 +518,7 @@ optional arguments:
                         List of neural network hidden layer sizes. e.g., --hidden_layers 256 128
   --use_preprocessed    Whether to use preprocessed data files.
 ```
-An example of running a command is provided as below:
+Example command:
 ```
 python ./nanoMS_train.py \
 	--batch_size 32 \

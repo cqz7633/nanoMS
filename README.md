@@ -67,7 +67,6 @@ Example command:
 ```
 minimap2 -t 4 -ax map-ont -uf --secondary=no /PATH/to/transcript/fasta /PATH/to/merge/fastq > /PATH/to/sam
 ```
-*NOTE:* minimap2 has been integrated into the nanoMS environment.
 
 ## 4. Convert Sam to Bam
 Convert Sam format to Bam format and create an index for the Bam file.
@@ -88,7 +87,6 @@ Example command:
 ```
 nanopolish index --directory=/PATH/to/guppy/workspace --sequencing-summary=/PATH/to/guppy/sequencing_summary.txt /PATH/to/merge/fastq
 ```
-*NOTE:* nanopolish has been integrated into the nanoMS environment.
 
 ## 6. Align nanopore current signals to reference k-mers
 The nanopolish eventalign module aligns raw nanopore signal events (‘squiggles’) to a reference genome.

@@ -80,8 +80,7 @@ Convert Sam format to Bam format and create an index for the Bam file.
 Example command:
 ```
 samtools view -hbS -@ 4 /PATH/to/sam | samtools sort -@ 4 -o /PATH/to/bam -
-
-samtools index -@ 4 /PATH/to/sam
+samtools index -@ 4 /PATH/to/bam
 ```
 
 ## 5. Create an index for Nanopolish

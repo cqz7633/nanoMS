@@ -19,7 +19,7 @@ git clone https://github.com/cqz7633/nanoMS.git
 cd ./nanoMS
 conda env create -f environment.withapp.yml
 ```
-*NOTE:* The YAML file includes PyTorch 2.4.1, pre-configured with Python 3.8, CUDA 12.1, and cuDNN 9.1.0.
+*NOTE:* The YAML file provides a pre-configured Python 3.8 environment, including PyTorch 2.4.1, CUDA 12.1, and cuDNN 9.1.0.
 
 Then, activate the `nanoMS` environment.
 

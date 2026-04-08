@@ -7,11 +7,11 @@
 Simultaneous detection of RNA m6A and structure from direct RNA-seq data.
 <p align="center"><img src="./images/nanoMS_pipline.png"></p>
 
-## Create Environment with Conda
+# Create Environment with Conda
 
 Although Guppy is no longer officially supported, we provide the source code package to facilitate installation. It can be downloaded from [Google Drive](https://drive.google.com/file/d/10Jr7VPfkcAqDZg4AE4a4yRtqq13DMU3t/view?usp=drive_link).
 
-### Option 1. Install the environment via the YAML file
+## Option 1. Install the environment via the YAML file
 First, download the repository and create the environment.
 
 ```
@@ -27,7 +27,7 @@ Then, activate the `nanoMS` environment.
 conda activate nanoMS
 ```
 
-### Option 2.  Install the environment manually using conda install
+## Option 2.  Install the environment manually using conda install
 Install the Python packages required for the nanoMS scripts and model using the following command:
 ```
 conda install pandas numpy tqdm psutil scikit-learn pytorch -c conda-forge

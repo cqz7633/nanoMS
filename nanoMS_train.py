@@ -47,7 +47,7 @@ class FocalLoss(nn.Module):
 def read_data(file_path, ncol):
 	"""
 	Read training or test data files and convert them into dataframes.
-	Each row contains 56 numerical features and 1 label, totaling 57 columns.
+	Each row contains contig, position, 56 numerical features and 1 label, totaling 59 columns.
 	Automatically skip rows that do not contain exactly 57 columns.
 	"""
 	print(f"Start reading data file: {file_path}")
@@ -218,12 +218,12 @@ def train_and_evaluate(args, data_train, data_test):
 		nn_model = nn.DataParallel(nn_model, device_ids=device_ids)
 
 
-	class_weights = compute_class_weight(
-		class_weight='balanced',
-		classes=np.unique(train_y),
-		y=train_y
-	)
-	class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
+	# class_weights = compute_class_weight(
+	# 	class_weight='balanced',
+	# 	classes=np.unique(train_y),
+	# 	y=train_y
+	# )
+	# class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 	
 	# Use Focal Loss
 	criterion = FocalLoss(alpha=args.focal_alpha, gamma=args.focal_gamma)
@@ -247,6 +247,7 @@ def train_and_evaluate(args, data_train, data_test):
 	best_epoch = 0
 	patience_counter = 0
 	best_val_auc = 0
+	best_val_prc = 0
 	
 	history = {
 		'train_loss': [],
@@ -369,7 +370,7 @@ def train_and_evaluate(args, data_train, data_test):
 			torch.save(nn_model.state_dict(), checkpoint_path)
 			print(f"Saved model checkpoint for epoch {epoch}.")
 
-		print(f"\nTraining completed. The best model is in the {best_epoch} epoch, the validation loss: {best_val_loss:.4f}, AUC: {best_val_auc:.4f}, PR AUC: {best_val_prc:.4f}")
+	print(f"\nTraining completed. The best model is in the {best_epoch} epoch, the validation loss: {best_val_loss:.4f}, AUC: {best_val_auc:.4f}, PR AUC: {best_val_prc:.4f}")
 	
 	# history_df = pd.DataFrame(history)
 	train_res_file.close()

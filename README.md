@@ -51,12 +51,14 @@ conda install bioconda::samtools
 # Nanopore direct RNA sequencing data processing
 
 ## 1. Basecalling
-Guppy performs data trimming, filtering and basecalling, using FAST5 format files as input.
+`Guppy` performs data trimming, filtering and basecalling, using FAST5 format files as input.
 
 Example command:
 ```
 guppy_basecaller --num_callers 4 -i /PATH/to/FAST5_dir/ -s /PATH/to/output --flowcell {flowcell_type} --kit {kit_type} --recursive --fast5_out
 ```
+
+*NOTE:* The `--fast5_out` parameter is only applicable to older versions of `Guppy`. If your `Guppy` version does not support this parameter, you can omit it; however, you must then set the workspace directory to the location where your FAST5 files are stored.
 
 ## 2. Merge Fastq
 Merge the Fastq files obtained from basecalling..
@@ -92,14 +94,14 @@ nanopolish index --directory=/PATH/to/guppy/workspace --sequencing-summary=/PATH
 ```
 
 ## 6. Align nanopore current signals to reference k-mers
-The nanopolish eventalign module aligns raw nanopore signal events (‘squiggles’) to a reference genome.
+The nanopolish eventalign module aligns raw nanopore signal events to a reference genome.
 
 Example command:
 ```
 nanopolish eventalign -t 4 --signal-index --print-read-names --reads /PATH/to/merged/fastq --bam /PATH/to/bam --genome /PATH/to/transcript/fasta --summary /PATH/to/nanopolish/summary --scale-events > /PATH/to/events/align
 ```
 
-# Inference
+# nanoMS inference
 
 We have provided the trained model files in [Google Drive](https://drive.google.com/file/d/1df0hfNrswznawdOKMCfggHB0qxFz5rAH/view?usp=drive_link).
 ```

@@ -9,7 +9,7 @@ Detecting RNA structural modifications and m6A from nanopore direct RNA sequenci
 
 # Create Environment with Conda
 
-Although Guppy is no longer officially supported, we provide the source code package to facilitate installation. It can be downloaded from [Google Drive](https://drive.google.com/file/d/10Jr7VPfkcAqDZg4AE4a4yRtqq13DMU3t/view?usp=drive_link).
+Although Guppy is no longer officially supported, we provide the source code package to facilitate installation. It can be downloaded from [Google Drive](https://drive.google.com/file/d/10Jr7VPfkcAqDZg4AE4a4yRtqq13DMU3t/view?usp=drive_link) (v6.1.3).
 
 ## Option 1. Install the environment via the YAML file
 First, download the repository and create the environment.
@@ -58,7 +58,7 @@ Example command:
 guppy_basecaller --num_callers 4 -i /PATH/to/FAST5_dir/ -s /PATH/to/output --flowcell {flowcell_type} --kit {kit_type} --recursive --fast5_out
 ```
 
-*NOTE:* The `--fast5_out` parameter is only applicable to older versions of `Guppy`. If your `Guppy` version does not support this parameter, you can omit it; however, you must then set the workspace directory to the location where your FAST5 files are stored.
+*NOTE:* The `--fast5_out` parameter is only applicable to older versions of `Guppy`. If your version does not support it, you can omit this parameter, but ensure that the `Guppy` workspace directory is set to the location of your FAST5 files for subsequent steps.
 
 ## 2. Merge Fastq
 Merge the Fastq files obtained from basecalling..

@@ -1,11 +1,11 @@
-<p align="center"><img src="./images/framework.png" width="500px" height="250px" style="float: left;" ></p>
+<p align="center"><img src="./images/nanoMS_logo.png" width="500px" height="250px" style="float: left;" ></p>
 
 ******************
 
 # nanoMS
 
 Detecting RNA structural probing signals and m6A from nanopore direct RNA sequencing data using deep learning.
-<p align="center"><img src="./images/nanoMS_pipline.png"></p>
+<p align="center"><img src="./images/framework.png"></p>
 
 # Create Environment with Conda
 

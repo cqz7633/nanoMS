@@ -19,7 +19,7 @@ git clone https://github.com/cqz7633/nanoMS.git
 cd ./nanoMS
 conda env create -f environment.withapp.yml
 ```
-*NOTE:* The YAML file provides a pre-configured Python 3.8 environment, including PyTorch 2.4.1, CUDA 12.1, and cuDNN 9.1.0.
+*NOTE:* The YAML file provides a pre-configured Python 3.8 environment, including PyTorch 2.4.1, CUDA 12.1, and cuDNN 9.1.0. In addition, it contains all the environments required for the Guppy and Dorado pipelines. 
 
 Then, activate the `nanoMS` environment.
 
@@ -42,15 +42,28 @@ conda install pandas numpy tqdm psutil scikit-learn pytorch -c conda-forge
 *NOTE:* If you require GPU acceleration, please manually install the version of PyTorch that is compatible with your GPU drivers.
 
 Install the application for Nanopore direct RNA sequencing data processing using the following command:
+
+For the Guppy workflow:
 ```
 conda install bioconda::nanopolish
 conda install bioconda::minimap2
 conda install bioconda::samtools
 ```
+*NOTE:* Do not forget to install Guppy from the source code package.
+
+For the Dorado workflow:
+```
+conda install bioconda::minimap2
+conda install bioconda::samtools
+conda install bioconda::ont-fast5-api
+conda install hcc::dorado
+conda install bioconda::f5c
+pip install pod5
+```
 
 # Nanopore direct RNA sequencing data processing
-
-## 1. Basecalling
+## Guppy workflow (RNA002)
+### 1. Basecalling  using Guppy
 `Guppy` performs data trimming, filtering and basecalling, using FAST5 format files as input.
 
 Example command:
@@ -60,7 +73,7 @@ guppy_basecaller --num_callers 4 -i /PATH/to/FAST5_dir/ -s /PATH/to/output --flo
 
 *NOTE:* The `--fast5_out` parameter is only applicable to older versions of `Guppy`. If your version does not support it, you can omit this parameter, but ensure that the `Guppy` workspace directory is set to the location of your FAST5 files for subsequent steps.
 
-## 2. Merge Fastq
+### #2. Merge Fastq
 Merge the Fastq files obtained from basecalling..
 
 Example command:
@@ -68,7 +81,7 @@ Example command:
 find /{guppy_dir}/pass/ -name "*fastq" -print0 | xargs -0 cat > /PATH/to/merge/fastq
 ```
 
-## 3. Align Fastq files to the reference genome (transcript Fasta).
+### 3. Align Fastq files to the reference genome (transcript Fasta).
 Align the merged Fastq files to the reference transcriptome.
 
 Example command:
@@ -76,7 +89,7 @@ Example command:
 minimap2 -t 4 -ax map-ont -uf --secondary=no /PATH/to/transcript/fasta /PATH/to/merge/fastq > /PATH/to/sam
 ```
 
-## 4. Convert Sam to Bam
+### 4. Convert Sam to Bam
 Convert Sam format to Bam format and create an index for the Bam file.
 
 Example command:
@@ -85,7 +98,7 @@ samtools view -hbS -@ 4 /PATH/to/sam | samtools sort -@ 4 -o /PATH/to/bam -
 samtools index -@ 4 /PATH/to/bam
 ```
 
-## 5. Create an index for Nanopolish
+### 5. Create an index for Nanopolish
 Convert Sam format to Bam format and create an index for the Bam file.
 
 Example command:
@@ -93,7 +106,7 @@ Example command:
 nanopolish index --directory=/PATH/to/guppy/workspace --sequencing-summary=/PATH/to/guppy/sequencing_summary.txt /PATH/to/merge/fastq
 ```
 
-## 6. Align nanopore current signals to reference k-mers
+### 6. Align nanopore current signals to reference k-mers  (nanopolish eventalign)
 The nanopolish eventalign module aligns raw nanopore signal events to a reference genome.
 
 Example command:
@@ -101,9 +114,91 @@ Example command:
 nanopolish eventalign -t 4 --signal-index --print-read-names --reads /PATH/to/merged/fastq --bam /PATH/to/bam --genome /PATH/to/transcript/fasta --summary /PATH/to/nanopolish/summary --scale-events > /PATH/to/events/align
 ```
 
+## Dorado workflow (RNA002 and RNA004)
+### 0. Raw Data Preparation (FAST5 to POD5 Conversion)
+Dorado requires raw signal files in POD5 format. Depending on your initial file format:
+
+* Case 1: Direct POD5 files: Skip Step 0.1 & 0.2 and proceed directly to Step 1 (Basecalling).
+* Case 2: Single-read FAST5 files: Must be packed into multi-read FAST5 first (Step 0.1), then converted to POD5 (Step 0.2).
+* Case 3: Multi-read FAST5 files: Directly convert them to POD5 (Step 0.2).
+
+### 0.1 Convert single-read FAST5 to multi-read FAST5 (Optional)
+If your raw signals are legacy single-read FAST5 files:
+```
+single_to_multi_fast5 -i /PATH/to/single_fast5/ -s /PATH/to/multi_fast5/ --recursive --threads 4
+```
+
+### 0.2 Convert multi-read FAST5 to POD5 (Optional)
+Convert multi-read FAST5 format into POD5 format:
+```
+pod5 convert fast5 /PATH/to/multi_fast5/ --recursive --output /PATH/to/pod5/ --threads 4
+```
+
+### 1. Basecalling using Dorado
+Dorado performs basecalling directly from POD5 files and outputs an unaligned BAM file.
+
+Example command:
+```
+dorado download --list
+dorado download --model <model_name> --models-directory /PATH/to/dorado_model
+dorado basecaller /PATH/to/dorado_model /PATH/to/pod5/ -x cuda:0 > /PATH/to/bam
+```
+*NOTE:* Dorado model version must match RNA002 and RNA004
+
+### 2. Convert BAM to Fastq
+Extract FASTQ reads from the Dorado-generated BAM file using samtools.
+
+Example command:
+```
+samtools fastq -@ 20 /PATH/to/calls.bam > /PATH/to/fastq
+```
+
+### 3. Align Fastq files to the reference genome (transcript Fasta)
+Align reads to the reference transcriptome using minimap2.
+
+Example command:
+```
+minimap2 -t 4 -ax map-ont -uf --secondary=no /PATH/to/transcript/fasta /PATH/to/fastq > /PATH/to/map.sam
+```
+
+### 4. Convert Sam to sorted Bam
+Convert SAM format to sorted BAM format and index it for downstream analysis.
+
+Example command:
+```
+samtools view -hbS -@ 4 /PATH/to/map.sam | samtools sort -@ 4 -o /PATH/to/map.sorted.bam -
+samtools index -@ 4 /PATH/to/map.sorted.bam
+```
+
+### 5. Create an index for f5c
+Build an index mapping between the FASTQ reads and raw signal data (FAST5 directory) using f5c.
+
+Example command:
+```
+f5c index --iop 10 -t 4 -d /PATH/to/multi_fast5/ /PATH/to/fastq
+```
+
+### 6. Align nanopore current signals to reference k-mers (f5c eventalign)
+Use GPU/CPU-accelerated f5c eventalign to align raw current events to the transcriptome reference. Specify --pore rna004 (or r9 for RNA002).
+
+Example command:
+```
+f5c eventalign -t 20 \
+    -r /PATH/to/fastq \
+    -b /PATH/to/map.sorted.bam \
+    -g /PATH/to/transcript/fasta \
+    --pore rna004/r9 \ # r9 for rna002
+    --rna \
+    --scale-events \
+    --signal-index \
+    --print-read-names \
+    --summary /PATH/to/output/eventalign_summary.txt > /PATH/to/output/eventalign.txt
+```
+
+*NOTE:* To apply it to RNA004 data, simply set the -k parameter to 004 and update the model path to the RNA004 model path in the following pipeline.
 # nanoMS inference
 
-We have provided the trained model files in [Google Drive](https://drive.google.com/file/d/1df0hfNrswznawdOKMCfggHB0qxFz5rAH/view?usp=drive_link).
+We have provided the trained model files in RNA002: [Google Drive](https://drive.google.com/file/d/1Vf7Z2hwPwe31pBjFw6KPVm7KIQy8Ap7z/view?usp=drive_link), RNA004: [Google Drive](https://drive.google.com/file/d/1Iyky1lJFdm51pN0VEZugpbqmAW8-YtX-/view?usp=drive_link).
 ```
 models/
  ├── structure # Trained model for structural modification
@@ -153,8 +248,7 @@ Generate structure and m6A inference data using the `generate_infer_data.py` scr
 
 The parameters of the `generate_infer_data.py` script is provided as below:
 ```
-usage: generate_infer_data.py [-h] -i INPUT_FILE -o OUTPUT_DIR -f FILE_PREFIX [-p PROCESSES]
-                              [-m {both,m6a,structure}]
+usage: generate_infer_data.py [-h] -i INPUT_FILE -o OUTPUT_DIR -f FILE_PREFIX [-p PROCESSES] [-k {002,004}] [-m {both,m6a,structure}]
 
 Generate m6A sites and secondary structure data for inference at the site level.
 
@@ -168,12 +262,14 @@ optional arguments:
                         Output file prefix
   -p PROCESSES, --processes PROCESSES
                         Number of processes to use (default: 4)
+  -k {002,004}, --kits {002,004}
+                        002 for 7-mer, 004 for 11-mer (default: 002)
   -m {both,m6a,structure}, --mode {both,m6a,structure}
                         Choose outputs: 'both' (default), 'm6a' (only m6a sites), 'structure' (only structure)
 ```
 Example command:
 ```
-python ./scripts/generate_infer_data.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/output/dir -f Demo_prefix -m both
+python ./scripts/generate_infer_data.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/output/dir -f Demo_prefix -m both -k 002
 ```
 Path to the result file example:  
 ./file_example/site/infer/Demo_H9_nanopolish_events.infer.m6a.tsv
@@ -185,34 +281,36 @@ Perform inference using the trained nanoMS model using `nanoMS_infer.py` script.
 
 The parameters of the `nanoMS_infer.py` script is provided as below:
 ```
-usage: nanoMS_infer.py [-h] --test_file TEST_FILE --model_dir MODEL_DIR
-                       [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE] --output_file
-                       OUTPUT_FILE [--gpu_id GPU_ID]
+usage: nanoMS_infer.py [-h] [-k {002,004}] --test_file TEST_FILE --model_dir MODEL_DIR [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE] --output_file OUTPUT_FILE
+                       [--batch_size BATCH_SIZE] [--gpu_id GPU_ID]
 
-nanoMS predictor
+nanoMS predictor supporting Kit 002 (56 features) and Kit 004 (88 features)
 
 optional arguments:
   -h, --help            show this help message and exit
+  -k {002,004}, --kits {002,004}
+                        Kits version: 002 or 004. If not set, will load from metadata file. (default: 002)
   --test_file TEST_FILE
-                        The input file path
+                        The input test/inference file path.
   --model_dir MODEL_DIR
-                        Output directory for nanoMS training
+                        Output directory containing trained model and metadata.
   --preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE
-                        Pre processed training data save/load file name
+                        Inference metadata save/load file name.
   --output_file OUTPUT_FILE
-                        Path of output results
-  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0,1,2"). If not specified, CPU will be
-                        used.
+                        Path of output prediction results.
+  --batch_size BATCH_SIZE
+                        Batch size for prediction. default: 1024
+  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0" or "0,1,2").
 ```
 
-The following command is an example of structural modification prediction:
+The following command is an example of structural probe prediction:
 ```
-python ./nanoMS_infer.py --model_dir /PATH/to/models/strcuture --test_file /PATH/to/structure/inference/data --output_file /PATH/to/output
+python ./nanoMS_infer.py --model_dir /PATH/to/models/structure --test_file /PATH/to/structure/inference/data --output_file /PATH/to/output -k 002
 ```
 
 The following command is an example of m6A prediction:
 ```
-python ./nanoMS_infer.py --model_dir /PATH/to/models/m6A --test_file /PATH/to/m6A/inference/data --output_file /PATH/to/output
+python ./nanoMS_infer.py --model_dir /PATH/to/models/m6A --test_file /PATH/to/m6A/inference/data --output_file /PATH/to/output -k 002
 ```
 
 Output format is as follows:
@@ -252,18 +350,18 @@ Example command:
 python ./scripts/clean_event.sm.py -i ./data/Demo_H9_nanopolish_events.tsv -o /PATH/to/Single-molecule/clean_events.txt -p 4
 ```
 
-Path to the result file example: ./file_example/sinlge_molecule/Demo_H9_nanopolish_events.sm.clean.tsv
+Path to the result file example: ./file_example/single_molecule/Demo_H9_nanopolish_events.sm.clean.tsv
 
 
 ### 2. Generate single-molecule level inference data
-### For structural modification
+### For structural probe
 Generate structure inference data using the `generate_struct_infer.sm.py` script.
 
 The parameters of the `generate_struct_infer.sm.py` script is provided as below:
 ```
-usage: generate_struct_infer.sm.py [-h] -i INPUT -o OUTPUT [-p PROCESSES]
+usage: generate_struct_infer.sm.py [-h] -i INPUT -o OUTPUT [-p PROCESSES] [-k {002,004}]
 
-Extract context features of the m6A-associated DRACH motif at the single-molecule level for subsequent inference.
+Extract context features at the single-molecule level for subsequent inference.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -273,22 +371,24 @@ optional arguments:
                         Output file path
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes
+  -k {002,004}, --kits {002,004}
+                        002 extracts 7 positions; 004 extracts 11 positions (default: 002)
 ```
 Example command:
 ```
-python ./scripts/generate_struct_infer.sm.py -p 4 -i /PATH/to/Single-molecule/clean_events.txt -o /PATH/to/output
+python ./scripts/generate_struct_infer.sm.py -p 4 -i /PATH/to/Single-molecule/clean_events.txt -o /PATH/to/output -k 002
 ```
 
-Path to the result file example: ./file_example/sinlge_molecule/Demo_H9_nanopolish_events.sm.infer.structure.tsv
+Path to the result file example: ./file_example/single_molecule/Demo_H9_nanopolish_events.sm.infer.structure.tsv
 
 ### For m6A
 Generate structure inference data using the `generate_m6a_infer.sm.py` script.
 
 The parameters of the `generate_m6a_infer.sm.py` script is provided as below:
 ```
-usage: generate_m6a_infer.sm.py [-h] -i INPUT -o OUTPUT [-p PROCESSES]
+usage: generate_m6a_infer.sm.py [-h] -i INPUT -o OUTPUT [-p PROCESSES] [-k {002,004}]
 
-Extract context features of the m6A-associated DRACH motif at the single-molecule level for subsequent inference.
+Extract context features of the m6A-associated DRACH motif at the single-molecule level.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -298,13 +398,15 @@ optional arguments:
                         Output file path
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes (default: 4)
+  -k {002,004}, --kits {002,004}
+                        002 extracts 7 positions; 004 extracts 11 positions (default: 002)
 ```
 Example command:
 ```
-python ./scripts/generate_m6a_infer.sm.py -p 4 -i /PATH/to/Single-molecule/clean_events.txt -o /PATH/to/output
+python ./scripts/generate_m6a_infer.sm.py -p 4 -i /PATH/to/Single-molecule/clean_events.txt -o /PATH/to/output -k 002
 ```
 
-Path to the result file example: ./file_example/sinlge_molecule/Demo_H9_nanopolish_events.sm.infer.m6a.tsv
+Path to the result file example: ./file_example/single_molecule/Demo_H9_nanopolish_events.sm.infer.m6a.tsv
 
 ### 3. nanoMS inference at single-molecule
 Perform inference using the trained nanoMS model using `nanoMS_infer.sm.py` script. 
@@ -332,7 +434,7 @@ optional arguments:
 
 The following command is an example of structural modification prediction:
 ```
-python ./nanoMS_infer.sm.py --model_dir /PATH/to/models/strcuture --test_file /PATH/to/Single-molecule/structure/inference/data --output_file /PATH/to/output
+python ./nanoMS_infer.sm.py --model_dir /PATH/to/models/structure --test_file /PATH/to/Single-molecule/structure/inference/data --output_file /PATH/to/output
 ```
 
 The following command is an example of m6A prediction:
@@ -400,7 +502,7 @@ Generate training data from cleaned event data using the `generate_struct_train.
 
 The parameters of the `generate_struct_train.py` script is provided as below:
 ```
-usage: generate_struct_train.py [-h] -i INPUT_FILE -o OUTPUT_FILE -r REF_SHAPE_FILE [-p PROCESSES]
+usage: generate_struct_train.py [-h] -i INPUT_FILE -o OUTPUT_FILE -r REF_SHAPE_FILE [-k {002,004}] [-p PROCESSES]
 
 Extract context features of the structural modification at the site level for training.
 
@@ -412,12 +514,14 @@ optional arguments:
                         Output file path
   -r REF_SHAPE_FILE, --ref_shape_file REF_SHAPE_FILE
                         Reference icshape file
+  -k {002,004}, --kits {002,004}
+                        002 for 7-mer, 004 for 11-mer (default: 002)
   -p PROCESSES, --processes PROCESSES
                         Number of parallel processes (default: 4)
 ```
 Example command:
 ```
-python ./scripts/generate_m6a_train.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/struct_train_data.tsv -r ./data/Demo_H9_shape.tsv
+python ./scripts/generate_m6a_train.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/struct_train_data.tsv -r ./data/Demo_H9_shape.tsv -k 002
 ```
 
 Path to the result file example: ./file_example/site/train/Demo_H9_nanopolish_events.train.structure.tsv
@@ -435,32 +539,32 @@ The format is as follows:
 | ENST00000477976.5 | 2766 |
 | ENST00000379370.7 | 6241 |
 
-*NOTE:* This file contains a header and is divided by tabs.
+*NOTE:* This file contains a header and is divided by tabs. The names in the Trans column of the label file must correspond to the contig names in eventalign file.
+
+
 
 Generate training data from cleaned event data using the `generate_m6a_train.py` script.
 
 The parameters of the `generate_m6a_train.py` script is provided as below:
 ```
-usage: generate_m6a_train.py [-h] -i INPUT_FILE -o OUTPUT_FILE -r REF_POS_FILE [-b {0,1}] [-p PROCESSES]
+usage: generate_m6a_train.py [-h] -i INPUT_FILE -o OUTPUT_FILE -r REF_POS_FILE [-k {002,004}] [-p PROCESSES] [-b {0,1}]
 
-Extract context features of the m6A-associated DRACH motif at the site level for training.
+Efficient m6A site data extraction.
 
 optional arguments:
   -h, --help            show this help message and exit
   -i INPUT_FILE, --input_file INPUT_FILE
-                        Input clean_event.py file
   -o OUTPUT_FILE, --output_file OUTPUT_FILE
-                        Output file path
   -r REF_POS_FILE, --ref_pos_file REF_POS_FILE
-                        Reference position file
-  -b {0,1}, --base {0,1}
-                        Label base type: 0 for 0-base, 1 for 1-base
+  -k {002,004}, --kits {002,004}
+                        002 for 7-mer, 004 for 11-mer (default: 002)
   -p PROCESSES, --processes PROCESSES
-                        Number of parallel processes (default: 4)
+  -b {0,1}, --base {0,1}
+                        The ref_pos_file uses a 0-based or 1-based coordinate (default: 0)
 ```
 Example command:
 ```
-python ./scripts/generate_m6a_train.py -p 5 -i /PATH/to/clean_events.txt -o /PATH/to/m6A_train_data.tsv -r ./data/Demo_H9_ref_position.tsv -b 0
+python ./scripts/generate_m6a_train.py -p 5 -i /PATH/to/clean_events.txt -o /PATH/to/m6A_train_data.tsv -r ./data/Demo_H9_ref_position.tsv -b 0 -k 002
 ```
 
 Path to the result file example: ./file_example/site/train/Demo_H9_nanopolish_events.train.m6a.tsv
@@ -471,36 +575,31 @@ Train the nanoMS model using the `nanoMS_train.py script`, which accepts either 
 
 The parameters for nanoMS_train.py are as follows:
 ```
-usage: nanoMS_train.py [-h] --train_file TRAIN_FILE [--valid_ratio VALID_RATIO] [--valid_file VALID_FILE]
-                       --output_dir OUTPUT_DIR [--ncol NCOL] [--epochs EPOCHS] [--batch_size BATCH_SIZE]
-                       [--learning_rate LEARNING_RATE] [--weight_decay WEIGHT_DECAY] [--patience PATIENCE]
-                       [--seed SEED] [--dropout_rate DROPOUT_RATE] [--focal_alpha FOCAL_ALPHA]
-                       [--focal_gamma FOCAL_GAMMA] [--gpu_id GPU_ID]
-                       [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE]
-                       [--preprocessed_test_data_file PREPROCESSED_TEST_DATA_FILE] [--save_epoch_model] [--l2 L2]
-                       [--hidden_layers HIDDEN_LAYERS [HIDDEN_LAYERS ...]] [--use_preprocessed]
+usage: nanoMS_train.py [-h] [-k {002,004}] --train_file TRAIN_FILE [--valid_ratio VALID_RATIO] [--valid_file VALID_FILE] --output_dir OUTPUT_DIR [--ncol NCOL] [--epochs EPOCHS]
+                       [--batch_size BATCH_SIZE] [--learning_rate LEARNING_RATE] [--patience PATIENCE] [--seed SEED] [--dropout_rate DROPOUT_RATE] [--focal_alpha FOCAL_ALPHA]
+                       [--focal_gamma FOCAL_GAMMA] [--gpu_id GPU_ID] [--preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE] [--save_epoch_model] [--l2 L2]
+                       [--hidden_layers HIDDEN_LAYERS [HIDDEN_LAYERS ...]]
 
 Training a Neural Network to Predict RNA Structural Modifications and m6A Sites from Nanopore Sequencing Data
 
 optional arguments:
   -h, --help            show this help message and exit
+  -k {002,004}, --kits {002,004}
+                        Kits version: 002 (56 features) or 004 (88 features). default: 002
   --train_file TRAIN_FILE
                         Training data file path.
   --valid_ratio VALID_RATIO
                         Validation set ratio. default (0.2)
   --valid_file VALID_FILE
-                        Validation data file path. If no file is provided, it will be split from the training file
-                        according to the ratio set by --valid_ratio.
+                        Validation data file path. If no file is provided, it will be split from the training file according to the ratio set by --valid_ratio.
   --output_dir OUTPUT_DIR
                         Directory to save model and results.
-  --ncol NCOL           Number of data columns
+  --ncol NCOL           Number of data columns (Default: 59 for 002, 91 for 004).
   --epochs EPOCHS       Number of training epochs.
   --batch_size BATCH_SIZE
                         Training batch size.
   --learning_rate LEARNING_RATE
                         Optimizer learning rate.
-  --weight_decay WEIGHT_DECAY
-                        Weight decay (L2 regularization).
   --patience PATIENCE   Patience counter for early stopping.
   --seed SEED           Random seed.
   --dropout_rate DROPOUT_RATE
@@ -509,16 +608,13 @@ optional arguments:
                         Alpha parameter for focal loss.
   --focal_gamma FOCAL_GAMMA
                         Gamma parameter for focal loss.
-  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0,1,2"). If not specified, CPU will be used.
+  --gpu_id GPU_ID       Comma-separated list of GPU IDs to use (e.g., "0" or "0,1,2"). If not specified, default GPU/CPU will be used.
   --preprocessed_train_data_file PREPROCESSED_TRAIN_DATA_FILE
-                        Path to save/load preprocessed training data.
-  --preprocessed_test_data_file PREPROCESSED_TEST_DATA_FILE
-                        Path to save/load preprocessed testing data.
+                        Path to save inference metadata (scaler, feature names, etc.).
   --save_epoch_model    Save the model for each epoch
   --l2 L2               L2 regularization (weight_decay).
   --hidden_layers HIDDEN_LAYERS [HIDDEN_LAYERS ...]
                         List of neural network hidden layer sizes. e.g., --hidden_layers 256 128
-  --use_preprocessed    Whether to use preprocessed data files.
 ```
 Example command:
 ```
@@ -530,5 +626,6 @@ python ./nanoMS_train.py \
 	--patience 15 \
 	--dropout_rate 0.5 \
 	--gpu_id 0 \
+	--k 002 \
 	--output_dir /PATH/to/output/dir 
 ```

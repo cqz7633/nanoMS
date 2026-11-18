@@ -1,158 +1,208 @@
-import pandas as pd
-import numpy as np
-from tqdm import tqdm
 import argparse
-import os
-import multiprocessing as mp
-from multiprocessing import Pool, cpu_count
-import warnings
 import gc
+import os
+import warnings
+from itertools import repeat
+from multiprocessing import Pool, cpu_count
 
-warnings.filterwarnings('ignore')
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+
+warnings.filterwarnings("ignore")
+
+FEATURE_COLUMNS = [
+    "event_level_mean",
+    "event_stdv",
+    "event_length",
+    "standardized_level",
+    "event_level_median",
+    "event_stdv_median",
+    "event_length_median",
+    "diff_stdv",
+]
+
 
 def process_group(args):
-    """Function to process a single data group"""
-    group_key, group_data = args
-    read_name, contig = group_key
-    
-    # Sort by position
-    group_data = group_data.sort_values('position')
-    
-    # Extract core data as numpy arrays to improve lookup speed
-    positions = group_data['position'].values
-    kmers = group_data['reference_kmer'].values
-    
-    feature_columns = [
-        'event_level_mean', 'event_stdv', 'event_length', 'standardized_level',
-        'event_level_median', 'event_stdv_median', 'event_length_median', 'diff_stdv'
-    ]
-    feature_matrix = group_data[feature_columns].values
-    
-    # Build fast index 
+    """Process one read/contig group and extract its context features."""
+    (read_name, contig), group_data, offset = args
+
+    group_data = group_data.sort_values("position")
+    positions = group_data["position"].to_numpy()
+    feature_matrix = group_data[FEATURE_COLUMNS].to_numpy()
+    row_count = len(positions)
+
+    if row_count < 2 * offset + 1:
+        return []
+
+    # Preserve the original behavior for duplicate positions: the last row
+    # for a position is used by the position-to-index mapping.
     pos_to_idx = {pos: idx for idx, pos in enumerate(positions)}
-    pos_to_kmer = {pos: kmers[idx] for idx, pos in enumerate(positions)}
-    
+    unique_positions = np.fromiter(
+        sorted(pos_to_idx), dtype=positions.dtype, count=len(pos_to_idx)
+    )
+    index_by_position = np.fromiter(
+        (pos_to_idx[pos] for pos in unique_positions),
+        dtype=np.intp,
+        count=len(unique_positions),
+    )
+
+    # Only centers with a full positional range can have a valid window.
+    if len(unique_positions) < 2 * offset + 1:
+        return []
+
+    center_start = np.searchsorted(unique_positions, unique_positions + offset)
+    # Locate candidate center indices by their position in the sorted unique array.
+    candidate_indices = np.arange(offset, len(unique_positions) - offset)
+    center_positions = unique_positions[candidate_indices]
+
+    # Require every position in the window, including the center, to exist.
+    expected_positions = (
+        center_positions[:, None]
+        + np.arange(-offset, offset + 1, dtype=positions.dtype)
+    )
+    window_indices = np.searchsorted(unique_positions, expected_positions)
+    in_bounds = window_indices < len(unique_positions)
+    continuous = in_bounds.all(axis=1)
+
+    if continuous.any():
+        rows = np.flatnonzero(continuous)
+        continuous[rows] = np.all(
+            unique_positions[window_indices[rows]] == expected_positions[rows],
+            axis=1,
+        )
+
+    # Original logic requires position -2 to be present; it does not test a motif.
+    minus_two_indices = np.searchsorted(unique_positions, center_positions - 2)
+    minus_two_valid = minus_two_indices < len(unique_positions)
+    valid_rows = np.flatnonzero(minus_two_valid)
+    minus_two_valid[valid_rows] = (
+        unique_positions[minus_two_indices[valid_rows]]
+        == center_positions[valid_rows] - 2
+    )
+
+    keep = continuous & minus_two_valid
+    candidate_indices = candidate_indices[keep]
+    center_positions = center_positions[keep]
+    window_indices = window_indices[keep]
+
+    if len(candidate_indices) == 0:
+        return []
+
+    # Map unique-position indices back to the original sorted group rows.
+    feature_indices = index_by_position[window_indices]
+    window_features = feature_matrix[feature_indices]
+    finite = np.isfinite(window_features).all(axis=(1, 2))
+
     result_rows = []
-    
-    # [Modification 1]: Iterate using sorted(pos_to_idx.keys())
-    # This not only strictly ensures ascending order processing but also inherently deduplicates 
-    # redundant positions, perfectly aligning with the code below
-    all_positions = sorted(pos_to_idx.keys())
-    
-    for center_pos in all_positions:
-        # 1. Check for continuous upstream and downstream data (-3 to +3)
-        required_positions = [center_pos + i for i in range(-3, 4)]
-        if not all(p in pos_to_idx for p in required_positions):
-            continue
-            
-        # 2. Check if position-2 exists
-        pos_minus_2 = center_pos - 2
-        if pos_minus_2 not in pos_to_kmer:
-            continue
-            
-        # 3. Extract features of 7 windows
-        features = []
-        valid = True
-        for offset in range(-3, 4):
-            pos = center_pos + offset
-            idx = pos_to_idx[pos]
-            row_features = feature_matrix[idx]
-            
-            # Check for invalid values
-            if np.any(np.isnan(row_features)) or np.any(np.isinf(row_features)):
-                valid = False
-                break
-            features.extend(row_features)
-            
-        if not valid:
-            continue
-            
-        # Keep output column order: contig, position, read_name, features...
-        result_rows.append([contig, center_pos, read_name] + features)
-        
+    for center_pos, features in zip(center_positions[finite], window_features[finite]):
+        result_rows.append(
+            [contig, center_pos, read_name, *features.reshape(-1)]
+        )
+
     return result_rows
 
-def get_output_columns():
-    """Construct header for the output file"""
-    feature_columns = [
-        'event_level_mean', 'event_stdv', 'event_length', 'standardized_level',
-        'event_level_median', 'event_stdv_median', 'event_length_median', 'diff_stdv'
-    ]
-    output_columns = ['contig', 'position', 'read_name']
-    for offset in ['-3', '-2', '-1', '0', '+1', '+2', '+3']:
-        for feat in feature_columns:
-            output_columns.append(f"{offset}_{feat}")
-    return output_columns
 
-def process_data_parallel(input_file, output_file, num_processes=None):
+def get_output_columns(offset):
+    columns = ["contig", "position", "read_name"]
+    for window_offset in range(-offset, offset + 1):
+        prefix = f"+{window_offset}" if window_offset > 0 else str(window_offset)
+        columns.extend(f"{prefix}_{feature}" for feature in FEATURE_COLUMNS)
+    return columns
+
+
+def process_data_parallel(input_file, output_file, num_processes=None, kits="002"):
     if num_processes is None:
         num_processes = max(1, cpu_count() - 1)
-    
+
+    offset = 3 if kits == "002" else 5
     print(f"Using {num_processes} processes for parallel processing")
-    
+    print(f"Kit {kits}: extracting {2 * offset + 1} positions per site")
+
     dtype_dict = {
-        'contig': 'category',
-        'position': 'int32',
-        'reference_kmer': 'category',
-        'read_name': 'category',
-        'event_level_mean': 'float32',
-        'event_stdv': 'float32',
-        'event_length': 'float32',
-        'standardized_level': 'float32',
-        'event_level_median': 'float32',
-        'event_stdv_median': 'float32',
-        'event_length_median': 'float32',
-        'diff_stdv': 'float32'
+        "contig": "category",
+        "position": "int32",
+        "reference_kmer": "category",
+        "read_name": "category",
+        **{column: "float32" for column in FEATURE_COLUMNS},
     }
 
     print("Reading and loading data into memory...")
-    df = pd.read_csv(input_file, sep='\t', dtype=dtype_dict)
-    
-    print("Creating group iterator...")
-    group_iter = df.groupby(['read_name', 'contig'])
-    total_groups = group_iter.ngroups
-    
-    # 3. Prepare output file
-    header = get_output_columns()
-    
-    # [Modification 2]: First use pandas to generate an empty file with a header to ensure header consistency
-    pd.DataFrame(columns=header).to_csv(output_file, sep='\t', index=False)
-    
-    print(f"Starting parallel processing of {total_groups} data groups...")
-    
-    # Open file in append mode
-    with open(output_file, 'a', newline='') as f:
-        with Pool(processes=num_processes) as pool:
-            pbar = tqdm(total=total_groups, desc="Processing progress")
-            for result in pool.imap_unordered(process_group, group_iter, chunksize=200):
-                if result:
-                    # [Modification 3]: Use Pandas to_csv instead of native csv.writer for streaming write.
-                    # This retains the original "compute and release memory" optimization strategy,
-                    # and ensures that the underlying np.float32 format matches exactly with Pandas unified saving representation.
-                    chunk_df = pd.DataFrame(result)
-                    chunk_df.to_csv(f, sep='\t', header=False, index=False)
-                pbar.update(1)
-            pbar.close()
+    df = pd.read_csv(input_file, sep="\t", dtype=dtype_dict)
+    print(f"Input rows: {len(df)}")
 
-    # Release memory
+    print("Creating group iterator...")
+    group_iter = df.groupby(
+        ["read_name", "contig"],
+        sort=False,
+        observed=True,
+    )
+    total_groups = group_iter.ngroups
+    header = get_output_columns(offset)
+
+    print(f"Starting parallel processing of {total_groups} data groups...")
+    with open(output_file, "w", encoding="utf-8", newline="") as output:
+        output.write("\t".join(header) + "\n")
+
+        with Pool(processes=num_processes) as pool:
+            tasks = (
+                (group, group_data, offset)
+                for group, group_data in group_iter
+            )
+            results = pool.imap_unordered(process_group, tasks, chunksize=100)
+
+            for result in tqdm(results, total=total_groups, desc="Processing progress"):
+                if result:
+                    chunk_df = pd.DataFrame(result, columns=header)
+                    chunk_df.to_csv(
+                        output,
+                        sep="\t",
+                        header=False,
+                        index=False,
+                    )
+
     del df
     gc.collect()
     print(f"Processing complete, results saved to: {output_file}")
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Extract context features of the structural modification at the single-molecule level for subsequent inference.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Extract context features at the single-molecule level "
+            "for subsequent inference."
+        )
+    )
     parser.add_argument("-i", "--input", required=True, help="Input file path")
     parser.add_argument("-o", "--output", required=True, help="Output file path")
-    parser.add_argument("-p", "--processes", type=int, default=4, help="Number of parallel processes")
-    
+    parser.add_argument(
+        "-p",
+        "--processes",
+        type=int,
+        default=4,
+        help="Number of parallel processes",
+    )
+    parser.add_argument(
+        "-k",
+        "--kits",
+        choices=["002", "004"],
+        default="002",
+        help="002 extracts 7 positions; 004 extracts 11 positions (default: 002)",
+    )
+
     args = parser.parse_args()
-    
+
     if not os.path.exists(args.input):
-        print(f"Error: Input file {args.input} does not exist")
-        return
-    
+        parser.error(f"Input file does not exist: {args.input}")
+
     print(f"Input file: {args.input}")
-    process_data_parallel(args.input, args.output, args.processes)
+    process_data_parallel(
+        args.input,
+        args.output,
+        args.processes,
+        args.kits,
+    )
+
 
 if __name__ == "__main__":
     main()

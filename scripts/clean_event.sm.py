@@ -63,7 +63,7 @@ def process_chunk_vectorized(chunk_df):
             'contig': contig,
             'position': position,
             'reference_kmer': ref_kmer,
-			'read_name': read_name,
+            'read_name': read_name,
             'event_level_mean': filter_and_average_vectorized(event_level_mean),
             'event_stdv': filter_and_average_vectorized(event_stdv),
             'event_length': filter_and_average_vectorized(event_length),
@@ -138,7 +138,7 @@ def merge_multiple_results(results):
     merged = {
         'contig': results[0]['contig'],
         'position': results[0]['position'],
-		'read_name':results[0]['read_name']
+        'read_name':results[0]['read_name']
     }
     
     # Mode of reference_kmer

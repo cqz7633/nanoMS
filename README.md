@@ -628,3 +628,5 @@ python ./nanoMS_train.py \
 	--k 002 \
 	--output_dir /PATH/to/output/dir 
 ```
+# License
+This project is covered under the MIT License.

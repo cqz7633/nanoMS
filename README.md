@@ -570,7 +570,7 @@ Path to the result file example: ./file_example/site/train/Demo_H9_nanopolish_ev
 
 ## 3. nanoMS training
 
-Train the nanoMS model using the `nanoMS_train.py script`, which accepts either structure data or m6A data as input. 
+Train the nanoMS model using the `nanoMS_train.py` script, which accepts either structure data or m6A data as input. 
 
 The parameters for nanoMS_train.py are as follows:
 ```

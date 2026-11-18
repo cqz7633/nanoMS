@@ -73,7 +73,7 @@ guppy_basecaller --num_callers 4 -i /PATH/to/FAST5_dir/ -s /PATH/to/output --flo
 
 *NOTE:* The `--fast5_out` parameter is only applicable to older versions of `Guppy`. If your version does not support it, you can omit this parameter, but ensure that the `Guppy` workspace directory is set to the location of your FAST5 files for subsequent steps.
 
-### #2. Merge Fastq
+### 2. Merge Fastq
 Merge the Fastq files obtained from basecalling..
 
 Example command:
@@ -195,7 +195,6 @@ f5c eventalign -t 20 \
     --summary /PATH/to/output/eventalign_summary.txt > /PATH/to/output/eventalign.txt
 ```
 
-*NOTE:* To apply it to RNA004 data, simply set the -k parameter to 004 and update the model path to the RNA004 model path in the following pipeline.
 # nanoMS inference
 
 We have provided the trained model files in RNA002: [Google Drive](https://drive.google.com/file/d/1Vf7Z2hwPwe31pBjFw6KPVm7KIQy8Ap7z/view?usp=drive_link), RNA004: [Google Drive](https://drive.google.com/file/d/1Iyky1lJFdm51pN0VEZugpbqmAW8-YtX-/view?usp=drive_link).
@@ -213,7 +212,7 @@ nanoMS/
     ├── Demo_H9_ref_m6A.tsv # m6A position reference
     └── Demo_H9_shape.tsv # icSHAPE data
 ```
-
+*NOTE:* To apply it to RNA004 data, simply set the -k parameter to 004 and update the model path to the RNA004 model path in the following pipeline.
 ## Site level
 ### 1. Clean events
 

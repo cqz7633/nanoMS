@@ -520,7 +520,7 @@ optional arguments:
 ```
 Example command:
 ```
-python ./scripts/generate_m6a_train.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/struct_train_data.tsv -r ./data/Demo_H9_shape.tsv -k 002
+python ./scripts/generate_struct_train.py -p 4 -i /PATH/to/clean_events.txt -o /PATH/to/struct_train_data.tsv -r ./data/Demo_H9_shape.tsv -k 002
 ```
 
 Path to the result file example: ./file_example/site/train/Demo_H9_nanopolish_events.train.structure.tsv
